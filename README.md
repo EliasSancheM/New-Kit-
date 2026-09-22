@@ -32,7 +32,10 @@ iafactory-qa-kit/
 └── skills/
     ├── shared/                 # Utilidades comunes (Tokens, dynamic mapping, Obsidian, Notion)
     │   └── utils.py
-    ├── qa-welcome/             # [NUEVO] Onboarding guiado y autodiagnóstico de bienvenida
+    ├── qa-help/                # [NUEVO] Catálogo interactivo de skills, scripts, sintaxis y flags
+    │   ├── SKILL.md
+    │   └── scripts/help.py
+    ├── qa-welcome/             # Onboarding guiado y autodiagnóstico de bienvenida
     │   ├── SKILL.md
     │   └── scripts/welcome.py
     ├── qa-backlog/             # Consulta y filtrado de issues en Google Sheets
@@ -73,13 +76,19 @@ Para instalar y activar este plugin en cualquier workspace nuevo, basta con entr
 
 ## 🚀 Inicio Rápido (Quickstart)
 
-### 1. Setup y Bienvenida Interactiva
+### 1. Ayuda y Catálogo de Flags
+```bash
+# Ver todos los scripts, sintaxis y flags disponibles
+python skills/qa-help/scripts/help.py
+
+# Filtrar ayuda por skill puntual
+python skills/qa-help/scripts/help.py --skill qa-code-audit
+```
+
+### 2. Setup y Bienvenida Interactiva
 ```bash
 # Diagnóstico guiado con bienvenida
 python skills/qa-welcome/scripts/welcome.py
-
-# O instalador completo
-python setup.py
 ```
 
 ### 2. Comandos Principales para Asistentes de IA y Desarrolladores
