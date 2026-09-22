@@ -117,6 +117,21 @@ CATALOG = {
                     "python skills/qa-preflight/scripts/remote_batch_inspect.py --json"
                 ]
             },
+            "iap_tunnel.py": {
+                "path": "skills/qa-preflight/scripts/iap_tunnel.py",
+                "purpose": "Inicia, detiene o inspecciona el túnel IAP local hacia GCP (iafactory-dev) para reenviar los 27 puertos de agentes y servicios.",
+                "flags": [
+                    {"flag": "start", "type": "subcommand", "description": "Inicia el túnel IAP en segundo plano (--foreground para primer plano)."},
+                    {"flag": "stop", "type": "subcommand", "description": "Detiene limpiamente el túnel IAP activo y libera puertos."},
+                    {"flag": "status", "type": "subcommand", "description": "Comprueba el estado del túnel y puertos abiertos (--json para salida estructurada)."}
+                ],
+                "examples": [
+                    "python skills/qa-preflight/scripts/iap_tunnel.py start",
+                    "python skills/qa-preflight/scripts/iap_tunnel.py status",
+                    "python skills/qa-preflight/scripts/iap_tunnel.py status --json",
+                    "python skills/qa-preflight/scripts/iap_tunnel.py stop"
+                ]
+            },
             "refresh_auth.py": {
                 "path": "skills/qa-preflight/scripts/refresh_auth.py",
                 "purpose": "Genera storageState.json limpio para pruebas automatizadas de navegador.",

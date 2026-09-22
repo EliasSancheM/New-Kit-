@@ -10,6 +10,10 @@ import socket
 import argparse
 import json
 
+# Ensure UTF-8 output on Windows consoles
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "shared"))
 import utils
 

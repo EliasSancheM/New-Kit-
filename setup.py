@@ -57,33 +57,43 @@ def main():
 
     # 2. Configuración de Entorno e Identidad
     print("\n[2/4] Configurando variables de entorno e identidad...")
-    env_target = os.path.join(PLUGIN_DIR, ".env")
-    env_example = os.path.join(PLUGIN_DIR, ".env.example")
-    
-    if not os.path.exists(env_target) and os.path.exists(env_example):
-        shutil.copy(env_example, env_target)
-        print(f"  ℹ️ Archivo .env creado desde .env.example en {env_target}")
-    else:
-        print(f"  ✅ Archivo .env ya presente en {env_target}")
+    sys.path.append(os.path.join(PLUGIN_DIR, "skills", "shared"))
+    import utils
+
+    ws_root = utils.WORKSPACE_ROOT
+    ws_env = os.path.join(ws_root, ".env")
+    ws_env_example = os.path.join(ws_root, ".env.example")
+    plugin_env = os.path.join(PLUGIN_DIR, ".env")
+    plugin_env_example = os.path.join(PLUGIN_DIR, ".env.example")
+
+    # Asegurar .env en raíz de workspace
+    if not os.path.exists(ws_env) and os.path.exists(ws_env_example):
+        shutil.copy(ws_env_example, ws_env)
+        print(f"  ℹ️ Archivo .env creado en raíz del workspace: {ws_env}")
+    elif os.path.exists(ws_env):
+        print(f"  ✅ Archivo .env presente en workspace: {ws_env}")
+
+    # Asegurar .env en el plugin
+    if not os.path.exists(plugin_env) and os.path.exists(plugin_env_example):
+        shutil.copy(plugin_env_example, plugin_env)
+        print(f"  ℹ️ Archivo .env creado en plugin: {plugin_env}")
 
     # Consultar identidad de reporte para nuevos usuarios
-    sys.path.append(os.path.join(PLUGIN_DIR, "skills", "shared"))
     try:
-        import utils
         user_name = utils.get_user_name()
         print(f"  👤 Identidad de reporte QA: {user_name}")
     except Exception as e:
         print(f"  ⚠️ No se pudo determinar identidad: {e}")
 
-    # 3. Verificación de Autenticación
-    print("\n[3/4] Verificando autenticación de servicios...")
+    # 3. Verificación de Autenticación y Conectividad GCP
+    print("\n[3/4] Verificando autenticación de servicios y GCP...")
     
     # gcloud auth
     if ok_gcloud:
         try:
             tok = subprocess.check_output(["gcloud", "auth", "print-access-token"], text=True, stderr=subprocess.PIPE, shell=(sys.platform == "win32")).strip()
             if tok and not tok.startswith("ERROR"):
-                print("  ✅ Google Cloud Auth   : Sesión activa y token válido")
+                print("  ✅ Google Cloud Auth   : Sesión activa y token OAuth2 válido")
             else:
                 print("  ⚠️ Google Cloud Auth   : Sin sesión activa.")
                 print("     👉 Ejecuta: gcloud auth login --enable-gdrive-access")
@@ -91,36 +101,73 @@ def main():
             print("  ⚠️ Google Cloud Auth   : No se pudo verificar token.")
             print("     👉 Ejecuta: gcloud auth login --enable-gdrive-access")
 
+        # Test de salud con Compute Engine / VM iafactory-dev
+        try:
+            gcp_inst = os.environ.get("GCP_INSTANCE", "iafactory-dev")
+            gcp_zone = os.environ.get("GCP_ZONE", "us-central1-a")
+            gcp_proj = os.environ.get("GCP_PROJECT", "apiux-iafactory-nonprod")
+            cmd_vm = [
+                "gcloud", "compute", "instances", "describe", gcp_inst,
+                f"--zone={gcp_zone}",
+                f"--project={gcp_proj}",
+                "--format=value(status)"
+            ]
+            res_vm = subprocess.run(cmd_vm, capture_output=True, text=True, timeout=12, shell=(sys.platform == "win32"))
+            if res_vm.returncode == 0 and res_vm.stdout.strip():
+                vm_status = res_vm.stdout.strip()
+                print(f"  ✅ GCP Compute VM      : {gcp_inst} estado `{vm_status}`")
+            else:
+                print(f"  ⚠️ GCP Compute VM      : No se pudo consultar {gcp_inst} ({res_vm.stderr.strip()[:60]}...)")
+        except Exception as e:
+            print(f"  ⚠️ GCP Compute Check   : Timeout o error conectando a GCP ({e})")
+
     # Notion Token
-    sys.path.append(os.path.join(PLUGIN_DIR, "skills", "shared"))
     try:
-        import utils
         ntok = utils.get_notion_token()
-        if ntok:
+        if ntok and ntok.startswith("ntn_"):
             print("  ✅ Notion Token        : Configurado (ntn_****************)")
         else:
-            print("  ⚠️ Notion Token        : No configurado en .env (NOTION_TOKEN)")
-            print("     👉 AVISO: Solicita el token de integración de Notion a tu líder técnico / superior a cargo del workspace.")
-            print("     👉 Una vez recibido, agrégalo a tu archivo .env: NOTION_TOKEN=ntn_xxxx...")
+            print(f"  ⚠️ Notion Token        : NOTION_TOKEN no configurado en {ws_env}")
+            print(f"     👉 Agrega tu token en: {ws_env} (ej: NOTION_TOKEN=ntn_xxxx...)")
     except Exception as e:
         print(f"  ⚠️ Verificación Notion : {e}")
 
-    # 4. Pre-flight Check
-    print("\n[4/4] Ejecutando autodiagnóstico de Pre-flight...")
+    # 4. Pre-flight Check y Estado de Túneles
+    print("\n[4/4] Ejecutando autodiagnóstico de Pre-flight y Túnel IAP...")
+    sys.stdout.flush()
     try:
         preflight_script = os.path.join(PLUGIN_DIR, "skills", "qa-preflight", "scripts", "check_env.py")
-        subprocess.run([sys.executable, preflight_script])
+        res_pf = subprocess.run([sys.executable, preflight_script], capture_output=True, text=True, encoding="utf-8", errors="replace")
+        if res_pf.stdout:
+            print(res_pf.stdout.rstrip())
+        if res_pf.stderr:
+            print(f"  ⚠️ Error en preflight: {res_pf.stderr.strip()}", file=sys.stderr)
     except Exception as e:
         print(f"  Error ejecutando pre-flight: {e}")
+
+    # Diagnóstico del túnel IAP
+    sys.stdout.flush()
+    try:
+        tunnel_script = os.path.join(PLUGIN_DIR, "skills", "qa-preflight", "scripts", "iap_tunnel.py")
+        res_tun = subprocess.run([sys.executable, tunnel_script, "status"], capture_output=True, text=True, encoding="utf-8", errors="replace")
+        if res_tun.stdout:
+            print(res_tun.stdout.rstrip())
+        if res_tun.stderr:
+            print(f"  ⚠️ Error en túnel status: {res_tun.stderr.strip()}", file=sys.stderr)
+    except Exception as e:
+        pass
 
     print_header("🎉 Setup Finalizado")
     print("El plugin está listo para ser utilizado en cualquier IA o terminal.")
     print("Comandos disponibles:")
-    print("  - Backlog de Issues : python skills/qa-backlog/scripts/fetch_issues.py")
-    print("  - Auditoría de Git  : python skills/qa-code-audit/scripts/audit_changes.py")
-    print("  - Pre-flight Check  : python skills/qa-preflight/scripts/check_env.py")
-    print("  - Cerrar Issue (QA) : python skills/qa-finish/scripts/qa_finish_publisher.py")
-    print("  - Rechazar Issue    : python skills/qa-rejection/scripts/qa_rejection_publisher.py\n")
+    print("  - Túnel IAP (start) : python .agents/plugins/iafactory-qa-kit/skills/qa-preflight/scripts/iap_tunnel.py start")
+    print("  - Túnel IAP (status): python .agents/plugins/iafactory-qa-kit/skills/qa-preflight/scripts/iap_tunnel.py status")
+    print("  - Túnel IAP (stop)  : python .agents/plugins/iafactory-qa-kit/skills/qa-preflight/scripts/iap_tunnel.py stop")
+    print("  - Pre-flight Check  : python .agents/plugins/iafactory-qa-kit/skills/qa-preflight/scripts/check_env.py")
+    print("  - Backlog de Issues : python .agents/plugins/iafactory-qa-kit/skills/qa-backlog/scripts/fetch_issues.py")
+    print("  - Auditoría de Git  : python .agents/plugins/iafactory-qa-kit/skills/qa-code-audit/scripts/audit_changes.py")
+    print("  - Cerrar Issue (QA) : python .agents/plugins/iafactory-qa-kit/skills/qa-finish/scripts/qa_finish_publisher.py")
+    print("  - Rechazar Issue    : python .agents/plugins/iafactory-qa-kit/skills/qa-rejection/scripts/qa_rejection_publisher.py\n")
 
 if __name__ == "__main__":
     main()

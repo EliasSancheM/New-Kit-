@@ -82,7 +82,9 @@ def main():
     
     print("\n🔍 ESTADO DE CONECTIVIDAD Y SERVICIOS:")
     print(f"  {'Google Cloud Auth (Sheets API)':<32}: {'✅ Activo' if data['gcloud_auth'] else '⚠️ No activo (corre: gcloud auth login --enable-gdrive-access)'}")
-    print(f"  {'Notion API (NOTION_TOKEN)':<32}: {'✅ Configurado' if data['notion_token'] else '⚠️ Falta NOTION_TOKEN (Solicítalo a tu líder / superior a cargo del workspace)'}")
+    print(f"  {'Notion API (NOTION_TOKEN)':<32}: {'✅ Configurado' if data['notion_token'] else '⚠️ No configurado'}")
+    if not data['notion_token']:
+        print(f"     👉 Configura NOTION_TOKEN en: {os.path.join(data['workspace_root'], '.env')}")
     
     print("\n📂 REPOSITORIOS PRODUCTO DETECTADOS:")
     for repo, exists in data["submodules"].items():

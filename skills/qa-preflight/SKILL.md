@@ -25,6 +25,11 @@ python .agents/plugins/iafactory-qa-kit/skills/qa-preflight/scripts/remote_batch
 # 4. Check single repo checkout in VM (e.g. frontend, core, agents, platform)
 python .agents/plugins/iafactory-qa-kit/skills/qa-preflight/scripts/remote_batch_inspect.py --repo frontend
 
-# 5. Generate clean, pre-authenticated storageState.json for browser tests
+# 5. IAP Tunnel Management (Start, status, stop)
+python .agents/plugins/iafactory-qa-kit/skills/qa-preflight/scripts/iap_tunnel.py start
+python .agents/plugins/iafactory-qa-kit/skills/qa-preflight/scripts/iap_tunnel.py status --json
+python .agents/plugins/iafactory-qa-kit/skills/qa-preflight/scripts/iap_tunnel.py stop
+
+# 6. Generate clean, pre-authenticated storageState.json for browser tests
 python .agents/plugins/iafactory-qa-kit/skills/qa-preflight/scripts/refresh_auth.py
 ```
