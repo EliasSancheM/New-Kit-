@@ -1,0 +1,34 @@
+# ---------------------------------------------------------------------------
+# IAFactory QA Kit - Git Ignore Rules
+# ---------------------------------------------------------------------------
+
+# Sensitive Credentials & Tokens
+.env
+*.env
+gcloud_token.json
+auth/*.json
+!auth/.gitkeep
+
+# Local user configurations
+config.json
+*.local
+
+# Python Caches & Environments
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+venv/
+.venv/
+env/
+
+# Operating System & IDE
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/
+.idea/

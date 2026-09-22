@@ -1,0 +1,8 @@
+# IAFactory QA Kit - Dependencies
+# Core scripts run on Python standard library for maximum zero-dependency portability.
+# The following dependencies are recommended for linting, testing, and full agentic workflows:
+ruff>=0.4.0
+mypy>=1.10.0
+pytest>=7.4.0
+python-dotenv>=1.0.0
+pydantic>=2.5.0
