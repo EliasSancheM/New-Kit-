@@ -50,32 +50,67 @@ Cuando se te solicite realizar tareas sobre incidencias (`AF-XXX`), **debes prio
 
 ## 3. Protocolo Mandatorio de Revisión de Incidencias (4 Fases)
 
-Cada vez que el usuario solicite la revisión de una incidencia (`AF-XXX`), el asistente **DEBE** estructurar su análisis obligatoriamente bajo estas 4 etapas:
+Cada vez que el usuario solicite la revisión formal de una incidencia (`AF-XXX`), el asistente **DEBE** estructurar su análisis obligatoriamente siguiendo esta plantilla exacta:
 
-1. **Explicación del Issue:** Detalle del síntoma reportado, contexto operativo y causa raíz del problema identificada en el código.
-2. **Cambios Implementados:** Análisis técnico de los archivos modificados, commits del desarrollador asociados y el diff de código concreto.
-3. **Propuesta de Revisión en Vivo:** Plan detallado paso a paso para validar empíricamente la solución en caliente (endpoints, servicios, contenedores, logs de Docker o casos de prueba en navegador/API).
-4. **🛑 Cero Mutaciones en Google Sheets / Notion sin Autorización Previa:**
-   - **ESTRICTAMENTE PROHIBIDO ejecutar `qa-finish` o `qa-rejection` de forma autónoma.**
-   - No se alterará ninguna celda de estado en Google Sheets (columna de estado I) ni se publicará el veredicto final en Notion sin que el usuario haya revisado la propuesta y otorgado explícitamente su visto bueno ("Proceder", "Aprobado", "Rechazar ticket").
+```markdown
+> ⚠️ **ADVERTENCIA DE SEGURIDAD E INGENIERÍA**
+> *Esta solución técnica y sus fragmentos de código fueron generados mediante Inteligencia Artificial. Los cambios sugeridos pueden tener implicaciones o consecuencias imprevistas en el entorno. Es imperativo que el equipo de desarrollo revise minuciosamente el código y se aplique con extrema precaución.*
+
+---
+
+## 📌 Trazabilidad Mandatoria del Entorno GCP / VM Remota
+
+• **Instancia GCP:** `iafactory-dev` (us-central1-a, apiux-iafactory-nonprod) vía túnel IAP.
+• **Rama Git:** `dev`.
+• **Bitbucket Remoto (origin/dev):** Commit HEAD `<hash>` ("<mensaje>", <fecha>).
+• **Checkout en VM (`/opt/ai-factory/<repo>`):** Commit `<hash>` ("<mensaje>", <fecha>) → [Actualizado / Desactualizado].
+• **Contenedor `<nombre>`:** Creado `<fecha>` (<status>) → [Actualizado / Desactualizado respecto al commit].
+• **Veredicto de Despliegue:** [En Bitbucket dev SÍ/NO está mergeado; en la VM iafactory-dev SÍ/NO está levantado en caliente].
+
+---
+
+## Fase 1: Explicación del Issue
+
+• **Síntoma:** Detalle del síntoma reportado, contexto operativo y comportamiento anómalo.
+• **Causa Raíz:** Análisis a nivel de archivo y línea que origina el fallo.
+
+---
+
+## Fase 2: Cambios Implementados
+
+• **Desarrollador:** <Nombre> (PR #XXX, commits `<hashes>`).
+• **Archivos Modificados:**
+    1. `<archivo_1>:<lineas>`: Diff o fragmento representativo.
+    2. `<archivo_2>:<lineas>`: Diff o fragmento representativo.
+• **Validación de Tests:** Pruebas unitarias ejecutadas localmente con `fast_test_runner.py` → [✅ PASÓ / ❌ FALLÓ].
+
+---
+
+## Fase 3: Propuesta de Revisión en Vivo (Post-Despliegue)
+
+Para validar una vez que el pipeline de Jenkins o despliegue actualice la VM:
+1. **Verificar actualización en VM:**
+    • Confirmar `git -C /opt/ai-factory/<repo> log -1`.
+    • Confirmar `sudo docker exec <contenedor> grep -n ...`.
+2. **Prueba funcional en navegador / API:**
+    • Pasos de prueba detallados con credenciales/roles específicos.
+
+---
+
+## Fase 4: 🛑 Estado de Gobernanza y Cero Mutaciones
+
+• **Sin mutaciones:** No se alteró Google Sheets (se mantiene `En Revisión`) ni Notion.
+• **Bloqueador operativo / Estado:** [Pendiente despliegue / Listo para confirmación de prueba en caliente].
+```
 
 > 💡 **Distinción Operativa Clave (Revisión Formal vs. Verificación Puntual de Despliegue/Checkout):**
-> - **Revisión Formal de Incidencia** (*"revisa el issue AF-XXX"*, *"audita y valida AF-XXX"*, *"evalúa la solución de AF-XXX"*): Aplica obligatoriamente las 4 fases anteriores.
+> - **Revisión Formal de Incidencia** (*"revisa el issue AF-XXX"*, *"audita y valida AF-XXX"*, *"evalúa la solución de AF-XXX"*): Aplica obligatoriamente la plantilla de 4 fases anterior.
 > - **Comprobación Puntual de Despliegue / Checkout** (*"revisa si está levantado el fix/commit"*, *"confirma si está en el checkout de la VM"*, *"¿está el fix en HEAD dev de la VM?"*): **NO disparar las 4 fases**. Limitarse exclusivamente a comprobar el checkout/commit en la VM remota (`git log -1`) y contenedor (`docker ps`), respondiendo de forma directa y concisa: commit en VM vs commit en remoto, estado (SÍ/NO) y delta.
 
 ---
 
 ## 4. Integridad de Reportes y Trazabilidad de Entorno
 
-Todo reporte técnico generado debe incluir de forma mandatoria:
+Todo reporte técnico generado (`qa-finish` y `qa-rejection`) debe certificar taxativamente el **commit HEAD verificado en la instancia de GCP (`iafactory-dev`)**, la rama activa y el estado del contenedor asociado. Jamás omitir la versión desplegada en caliente en la VM para garantizar la correlación empírica inmutable entre la auditoría de código y el comportamiento observado en el entorno de pruebas.
 
-1. **El banner de advertencia de ingeniería y seguridad:**
-```markdown
-> ⚠️ **ADVERTENCIA DE SEGURIDAD E INGENIERÍA**
-> *Esta solución técnica y sus fragmentos de código fueron generados mediante Inteligencia Artificial. Los cambios sugeridos pueden tener implicaciones o consecuencias imprevistas en el entorno. Es imperativo que el equipo de desarrollo revise minuciosamente el código y se aplique con extrema precaución.*
-```
-
-2. **Trazabilidad Mandatoria del Entorno GCP / VM Remota:**
-   - Todo reporte de QA (`qa-finish` y `qa-rejection`) debe certificar taxativamente el **commit HEAD verificado en la instancia de GCP (`iafactory-dev`)**, la rama activa y el estado del contenedor asociado.
-   - Jamás omitir la versión de código desplegada en caliente en la VM para garantizar la correlación empírica inmutable entre la auditoría de código y el comportamiento observado en el entorno de pruebas.
 

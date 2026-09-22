@@ -22,6 +22,9 @@ python .agents/plugins/iafactory-qa-kit/skills/qa-preflight/scripts/check_env.py
 python .agents/plugins/iafactory-qa-kit/skills/qa-preflight/scripts/remote_batch_inspect.py
 python .agents/plugins/iafactory-qa-kit/skills/qa-preflight/scripts/remote_batch_inspect.py --json
 
-# 4. Generate clean, pre-authenticated storageState.json for browser tests
+# 4. Check single repo checkout in VM (e.g. frontend, core, agents, platform)
+python .agents/plugins/iafactory-qa-kit/skills/qa-preflight/scripts/remote_batch_inspect.py --repo frontend
+
+# 5. Generate clean, pre-authenticated storageState.json for browser tests
 python .agents/plugins/iafactory-qa-kit/skills/qa-preflight/scripts/refresh_auth.py
 ```

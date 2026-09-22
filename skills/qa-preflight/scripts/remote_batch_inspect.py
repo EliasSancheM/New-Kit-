@@ -121,7 +121,19 @@ def execute_remote_batch(instance="iafactory-dev", zone="us-central1-a", project
         "raw_stderr": proc.stderr
     }
 
-def print_markdown_report(data):
+def print_markdown_report(data, repo_filter=None):
+    if repo_filter:
+        repos = data.get("repos", {})
+        info = repos.get(repo_filter)
+        if not info or "error" in info:
+            err = info.get("error") if info else f"Repositorio {repo_filter} no encontrado"
+            print(f"❌ Error en checkout VM ({repo_filter}): {err}")
+            return
+        dirty_str = " (⚠️ Dirty)" if info.get("dirty") else ""
+        print(f"• **Checkout en VM (`/opt/ai-factory/{repo_filter}`):** Commit `{info.get('short_sha')}` ({info.get('commit_date', '')[:19]}){dirty_str}")
+        print(f"  Mensaje: \"{info.get('subject')}\" | Rama: `{info.get('branch')}`")
+        return
+
     print("### 🛰️ Diagnóstico Remoto Consolidado (iafactory-dev)\n")
     
     if "error" in data:
@@ -162,6 +174,7 @@ def print_markdown_report(data):
 def main():
     parser = argparse.ArgumentParser(description="Inspección remota consolidada en lote para VM de QA.")
     parser.add_argument("--json", action="store_true", help="Salida en formato JSON crudo")
+    parser.add_argument("--repo", choices=["core", "agents", "frontend", "platform"], help="Filtrar solo checkout de un repositorio específico")
     parser.add_argument("--instance", default="iafactory-dev", help="Nombre de la instancia GCE")
     parser.add_argument("--zone", default="us-central1-a", help="Zona GCP")
     parser.add_argument("--project", default="apiux-iafactory-nonprod", help="ID del proyecto GCP")
@@ -170,9 +183,12 @@ def main():
     data = execute_remote_batch(args.instance, args.zone, args.project)
     
     if args.json:
-        print(json.dumps(data, indent=2))
+        if args.repo and "repos" in data and args.repo in data["repos"]:
+            print(json.dumps(data["repos"][args.repo], indent=2))
+        else:
+            print(json.dumps(data, indent=2))
     else:
-        print_markdown_report(data)
+        print_markdown_report(data, repo_filter=args.repo)
 
 if __name__ == "__main__":
     main()

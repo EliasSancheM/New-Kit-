@@ -100,6 +100,8 @@ def main():
             print("  ✅ Notion Token        : Configurado (ntn_****************)")
         else:
             print("  ⚠️ Notion Token        : No configurado en .env (NOTION_TOKEN)")
+            print("     👉 AVISO: Solicita el token de integración de Notion a tu líder técnico / superior a cargo del workspace.")
+            print("     👉 Una vez recibido, agrégalo a tu archivo .env: NOTION_TOKEN=ntn_xxxx...")
     except Exception as e:
         print(f"  ⚠️ Verificación Notion : {e}")
 
