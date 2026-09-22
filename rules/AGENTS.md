@@ -25,26 +25,30 @@ Este documento rige la conducta de cualquier Asistente de IA (Antigravity, Claud
 
 ---
 
-## 2. Protocolo de Ejecución "Skill-First"
+## 2. Protocolo de Ejecución "Skill-First" y Consumo Automatizado (`--json`)
 
-Cuando se te solicite realizar tareas sobre incidencias (`AF-XXX`), **debes priorizar el uso de los scripts del plugin**:
+Cuando un asistente de IA ejecute tareas o deba procesar datos de las skills para su análisis interno, **debe usar mandatoriamente el flag `--json`**. El formato JSON previene errores de parseo de texto/tablas y optimiza el consumo de tokens:
 
 1. **Para listar o consultar issues pendientes:**
-   Ejecuta: `python <PLUGIN_ROOT>/skills/qa-backlog/scripts/fetch_issues.py --status "Pendiente,En Revisión"`
+   Ejecuta: `python <PLUGIN_ROOT>/skills/qa-backlog/scripts/fetch_issues.py --status "Pendiente,En Revisión" --json`
 2. **Para auditar los cambios de código de un issue:**
-   Ejecuta: `python <PLUGIN_ROOT>/skills/qa-code-audit/scripts/audit_changes.py --issue "AF-XXX"`
+   Ejecuta: `python <PLUGIN_ROOT>/skills/qa-code-audit/scripts/audit_changes.py --issue "AF-XXX" --json`
 3. **Para ejecutar pruebas unitarias dirigidas y quirúrgicas (Modo Acelerado):**
-   Ejecuta: `python <PLUGIN_ROOT>/skills/qa-code-audit/scripts/fast_test_runner.py [--frontend --file <path>] [--agent all --test-voseo]`
+   Ejecuta: `python <PLUGIN_ROOT>/skills/qa-code-audit/scripts/fast_test_runner.py [--frontend --file <path>] [--agent all --test-voseo] --json`
 4. **Para inspeccionar la infraestructura y contenedores en la VM en un solo viaje (Modo Acelerado):**
-   Ejecuta: `python <PLUGIN_ROOT>/skills/qa-preflight/scripts/remote_batch_inspect.py [--json]`
-5. **Para verificar el estado local de red y túneles IAP:**
-   Ejecuta: `python <PLUGIN_ROOT>/skills/qa-preflight/scripts/check_env.py`
-6. **Para reportar un nuevo defecto:**
+   Ejecuta: `python <PLUGIN_ROOT>/skills/qa-preflight/scripts/remote_batch_inspect.py --json`
+5. **Para verificar el estado local de red y túneles:**
+   Ejecuta: `python <PLUGIN_ROOT>/skills/qa-preflight/scripts/check_env.py --json`
+6. **Para consultar el catálogo de herramientas y flags disponibles:**
+   Ejecuta: `python <PLUGIN_ROOT>/skills/qa-help/scripts/help.py --json`
+7. **Para reportar un nuevo defecto:**
    Ejecuta: `python <PLUGIN_ROOT>/skills/report-bug/scripts/gsheets_updater.py "<Título>" "<Descripción>" "<Gravedad>" "[URL_Notion]"`
-7. **Para cerrar formalmente un defecto verificado:**
+8. **Para cerrar formalmente un defecto verificado:**
    Ejecuta: `python <PLUGIN_ROOT>/skills/qa-finish/scripts/qa_finish_publisher.py "AF-XXX" "<Resumen>" "<Detalle_Prueba>" "<Resultado>"`
-8. **Para rechazar formalmente un defecto no resuelto:**
+9. **Para rechazar formalmente un defecto no resuelto:**
    Ejecuta: `python <PLUGIN_ROOT>/skills/qa-rejection/scripts/qa_rejection_publisher.py "AF-XXX" "<Motivo>" "<Detalle_Falla>" "<Cambios_Encontrados>"`
+
+> 💡 **Regla de Formato:** El flag `--json` está destinado exclusivamente al consumo y lectura autónoma de la IA. Al presentar la respuesta final al usuario humano, la IA debe formatear los resultados en Markdown limpio, claro y legible.
 
 ---
 
