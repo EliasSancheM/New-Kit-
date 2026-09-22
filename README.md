@@ -26,11 +26,15 @@ iafactory-qa-kit/
 ├── rules/
 │   └── AGENTS.md               # Reglas de conducta, seguridad y gobernanza para cualquier IA
 ├── docs/
+│   ├── METODOLOGIA_QA_IAFACTORY.md # Marco metodológico, dualidad de verdad y ciclo de defectos
 │   ├── INSTALL_GUIA_DESDE_CERO.md  # Guía de onboarding paso a paso en computadores nuevos
 │   └── FAST_QA_WORKFLOW.md         # Protocolo de QA acelerado (Batching, tests quirúrgicos, subagentes)
 └── skills/
     ├── shared/                 # Utilidades comunes (Tokens, dynamic mapping, Obsidian, Notion)
     │   └── utils.py
+    ├── qa-welcome/             # [NUEVO] Onboarding guiado y autodiagnóstico de bienvenida
+    │   ├── SKILL.md
+    │   └── scripts/welcome.py
     ├── qa-backlog/             # Consulta y filtrado de issues en Google Sheets
     │   ├── SKILL.md
     │   └── scripts/fetch_issues.py
@@ -59,10 +63,22 @@ iafactory-qa-kit/
 
 ---
 
+## ⚡ Instalación en 1 Prompt (Para Asistentes de IA como Claude, Antigravity o Cursor)
+
+Para instalar y activar este plugin en cualquier workspace nuevo, basta con entregarle este prompt a tu asistente:
+
+> *"Instala el plugin IAFactory QA Kit desde `https://github.com/AlonsoSalasApiux/iafactory-qa-kit.git` registrándolo como git submodule en `.agents/plugins/iafactory-qa-kit`, ejecuta `python .agents/plugins/iafactory-qa-kit/skills/qa-welcome/scripts/welcome.py` y presenta el estado de los servicios."*
+
+---
+
 ## 🚀 Inicio Rápido (Quickstart)
 
-### 1. Setup en computador nuevo
+### 1. Setup y Bienvenida Interactiva
 ```bash
+# Diagnóstico guiado con bienvenida
+python skills/qa-welcome/scripts/welcome.py
+
+# O instalador completo
 python setup.py
 ```
 
@@ -73,7 +89,7 @@ python setup.py
 python skills/qa-backlog/scripts/fetch_issues.py --status "Pendiente,En Revisión"
 
 # 2. Auditar cambios de código de un commit o issue:
-python skills/qa-code-audit/scripts/audit_changes.py --commit "<hash>"
+python skills/qa-code-audit/scripts/audit_changes.py --issue "AF-XXX"
 
 # 3. Diagnóstico de túnel IAP antes de probar en vivo:
 python skills/qa-preflight/scripts/check_env.py
@@ -88,4 +104,5 @@ python skills/qa-finish/scripts/qa_finish_publisher.py "AF-XXX" "<Resumen>" "<Ev
 python skills/qa-rejection/scripts/qa_rejection_publisher.py "AF-XXX" "<Motivo>" "<Detalle_Falla>" "<Cambios_Encontrados>"
 ```
 
-Para instrucciones detalladas de integración con Claude Code, Cursor o Windsurf, consulta [INSTALL_GUIA_DESDE_CERO.md](docs/INSTALL_GUIA_DESDE_CERO.md).
+Para instrucciones detalladas de integración con Claude Code, Cursor o Windsurf, consulta [INSTALL_GUIA_DESDE_CERO.md](docs/INSTALL_GUIA_DESDE_CERO.md). Para la metodología completa de testing, consulta [METODOLOGIA_QA_IAFACTORY.md](docs/METODOLOGIA_QA_IAFACTORY.md).
+
