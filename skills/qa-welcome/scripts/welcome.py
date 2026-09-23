@@ -77,7 +77,7 @@ def main():
         import update_plugin
         data["plugin_info"] = update_plugin.get_local_version_info()
     except Exception:
-        data["plugin_info"] = {"version": "1.1.0", "commit": "local"}
+        data["plugin_info"] = {"version": "1.1.1", "commit": "local"}
 
     print("=" * 65)
     print("  👋 BIENVENIDO AL PLUGIN IAFACTORY QA KIT (`iafactory-qa-kit`)")

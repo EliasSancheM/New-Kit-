@@ -642,7 +642,7 @@ def resolve_level1_from_sheet(defect_id: str) -> tuple[str, str]:
     try:
         row_idx = find_sheet_row_for_defect(defect_id)
         if not row_idx: return None, None
-        col = get_column_mapping().get("comentario_qa", "N")
+        col = get_column_mapping().get("comentario_qa", "O")
         token = get_gcloud_token()
         url = f"https://sheets.googleapis.com/v4/spreadsheets/{SPREADSHEET_ID}/values/{SHEET_NAME}!{col}{row_idx}"
         req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
