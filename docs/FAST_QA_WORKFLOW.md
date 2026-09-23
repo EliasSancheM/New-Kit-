@@ -27,11 +27,11 @@ python <PLUGIN_ROOT>/skills/qa-preflight/scripts/remote_batch_inspect.py
 python <PLUGIN_ROOT>/skills/qa-preflight/scripts/remote_batch_inspect.py --json
 ```
 
-### Pilar 2: Tests Quirúrgicos y Ligeros (`fast_test_runner.py`)
-Ejecución rápida y dirigida de pruebas unitarias sobre los componentes modificados:
+### Pilar 2: Tests Quirúrgicos y Ligeros (`fast_test_runner.py` / `--run-tests`)
+*Nota de Integración Continua:* La suite de pruebas unitarias ya es ejecutada automáticamente por el pipeline de Jenkins en cada build de CI/CD. Por lo tanto, en la auditoría de issues la ejecución de tests está **desactivada por defecto** para evitar reprocesos innecesarios, y solo se ejecuta localmente cuando se incluye el flag `--run-tests` en `audit_changes.py` o se invoca manualmente:
 - **Frontend:** Ejecuta Vitest con `--no-threads` filtrando por archivo (`--file`) o por nombre de prueba (`--test`), reduciendo el tiempo de 45s a < 10s.
 - **Agentes:** Ejecuta scripts de validación directamente sobre Python nativo (ej. suite anti-voseo sobre los 7 agentes en < 5s).
-- **Advertencia Técnica de Rigor:** La prueba quirúrgica confirma el fix de forma rápida. La suite del módulo completo debe ejecutarse antes del cierre formal para prevenir regresiones.
+- **Advertencia Técnica de Rigor:** Útil cuando se necesita reproducir o validar quirúrgicamente un test específico en local antes del push.
 
 ```bash
 # Frontend quirúrgico:

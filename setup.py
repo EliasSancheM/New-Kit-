@@ -159,7 +159,22 @@ def main():
 
     print_header("🎉 Setup Finalizado")
     print("El plugin está listo para ser utilizado en cualquier IA o terminal.")
+
+    # Comprobación de actualizaciones del plugin
+    try:
+        updater_script = os.path.join(PLUGIN_DIR, "skills", "qa-update", "scripts", "update_plugin.py")
+        res_up = subprocess.run([sys.executable, updater_script, "--check", "--json"], capture_output=True, text=True, timeout=8)
+        if res_up.returncode == 0 and res_up.stdout:
+            up_data = json.loads(res_up.stdout)
+            if up_data.get("has_update"):
+                print(f"\n🔔 ¡AVISO DE ACTUALIZACIÓN! Hay {up_data.get('behind_count')} commits nuevos disponibles en GitHub.")
+                print("   👉 Para actualizar el plugin ejecuta:")
+                print("      python .agents/plugins/iafactory-qa-kit/skills/qa-update/scripts/update_plugin.py --update\n")
+    except Exception:
+        pass
+
     print("Comandos disponibles:")
+    print("  - Actualizar Plugin : python .agents/plugins/iafactory-qa-kit/skills/qa-update/scripts/update_plugin.py --check")
     print("  - Túnel IAP (start) : python .agents/plugins/iafactory-qa-kit/skills/qa-preflight/scripts/iap_tunnel.py start")
     print("  - Túnel IAP (status): python .agents/plugins/iafactory-qa-kit/skills/qa-preflight/scripts/iap_tunnel.py status")
     print("  - Túnel IAP (stop)  : python .agents/plugins/iafactory-qa-kit/skills/qa-preflight/scripts/iap_tunnel.py stop")

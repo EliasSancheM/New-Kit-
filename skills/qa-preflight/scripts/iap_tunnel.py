@@ -258,20 +258,28 @@ def stop_tunnel():
 
 def main():
     parser = argparse.ArgumentParser(description="Gestor de Túnel IAP para GCP IAFactory.")
+    parser.add_argument("--instance", type=str, default=None, help="Instancia GCP destino (iafactory-qa, iafactory-dev)")
     subparsers = parser.add_subparsers(dest="action", help="Acción a ejecutar")
 
     # start
     start_p = subparsers.add_parser("start", help="Iniciar túnel IAP")
     start_p.add_argument("--foreground", action="store_true", help="Ejecutar en primer plano")
+    start_p.add_argument("--instance", type=str, default=None, help="Instancia GCP destino")
 
     # stop
-    subparsers.add_parser("stop", help="Detener túnel IAP activo")
+    stop_p = subparsers.add_parser("stop", help="Detener túnel IAP activo")
 
     # status
     status_p = subparsers.add_parser("status", help="Consultar estado del túnel")
     status_p.add_argument("--json", action="store_true", help="Salida en JSON")
+    status_p.add_argument("--instance", type=str, default=None, help="Instancia GCP destino")
 
     args = parser.parse_args()
+
+    global GCP_INSTANCE
+    target_inst = getattr(args, "instance", None) or args.instance
+    if target_inst:
+        GCP_INSTANCE = target_inst
 
     if args.action == "start":
         start_tunnel(background=not args.foreground)

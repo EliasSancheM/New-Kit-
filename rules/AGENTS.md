@@ -86,7 +86,7 @@ Cada vez que el usuario solicite la revisión formal de una incidencia (`AF-XXX`
 • **Archivos Modificados:**
     1. `<archivo_1>:<lineas>`: Diff o fragmento representativo.
     2. `<archivo_2>:<lineas>`: Diff o fragmento representativo.
-• **Validación de Tests:** Pruebas unitarias ejecutadas localmente con `fast_test_runner.py` → [✅ PASÓ / ❌ FALLÓ].
+• **Validación de Tests:** [Omitida por defecto (cubierta por Jenkins CI/CD) / Ejecutada localmente con `--run-tests` → ✅ PASÓ / ❌ FALLÓ].
 
 ---
 

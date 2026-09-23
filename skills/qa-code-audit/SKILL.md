@@ -15,6 +15,9 @@ Audits code modifications across `ai-factory-core`, `ai-factory-agents`, `ai-fac
 # Audit code directly by Defect ID (resolves commits from Google Sheets)
 python .agents/plugins/iafactory-qa-kit/skills/qa-code-audit/scripts/audit_changes.py --issue "AF-185"
 
+# Audit code and optionally execute local unit tests (omitted by default, covered by Jenkins CI/CD)
+python .agents/plugins/iafactory-qa-kit/skills/qa-code-audit/scripts/audit_changes.py --issue "AF-185" --run-tests
+
 # Check status and recent commits across all 4 repos (JSON format)
 python .agents/plugins/iafactory-qa-kit/skills/qa-code-audit/scripts/audit_changes.py --json
 

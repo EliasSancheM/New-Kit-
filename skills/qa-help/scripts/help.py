@@ -61,10 +61,12 @@ CATALOG = {
                     {"flag": "--issue", "type": "string", "description": "ID del defecto (AF-XXX). Resuelve automáticamente los commits asociados desde Google Sheets."},
                     {"flag": "--commit", "type": "string", "description": "Hash del commit específico a inspeccionar en cualquier repo."},
                     {"flag": "--repo", "type": "string", "default": "all", "description": "Repositorio específico ('ai-factory-core', 'ai-factory-agents', 'ai-factory-frontend', 'ai-factory-platform', o 'all')."},
+                    {"flag": "--run-tests", "type": "boolean", "description": "Ejecuta suite de pruebas unitarias localmente con fast_test_runner (desactivado por defecto; la validación está cubierta por Jenkins CI/CD)."},
                     {"flag": "--json", "type": "boolean", "description": "Salida en JSON crudo para agentes."}
                 ],
                 "examples": [
                     "python skills/qa-code-audit/scripts/audit_changes.py --issue \"AF-228\"",
+                    "python skills/qa-code-audit/scripts/audit_changes.py --issue \"AF-228\" --run-tests",
                     "python skills/qa-code-audit/scripts/audit_changes.py --commit \"2d6a6772\"",
                     "python skills/qa-code-audit/scripts/audit_changes.py --repo ai-factory-frontend --json"
                 ]
@@ -221,6 +223,27 @@ CATALOG = {
                     "python skills/qa-help/scripts/help.py",
                     "python skills/qa-help/scripts/help.py --skill qa-preflight",
                     "python skills/qa-help/scripts/help.py --json"
+                ]
+            }
+        }
+    },
+    "qa-update": {
+        "description": "Detección de nuevas versiones y actualización segura del plugin desde GitHub.",
+        "scripts": {
+            "update_plugin.py": {
+                "path": "skills/qa-update/scripts/update_plugin.py",
+                "purpose": "Comprueba si hay nuevos commits en origin/main, muestra changelog y actualiza el plugin con git pull.",
+                "flags": [
+                    {"flag": "--check", "type": "boolean", "description": "Comprueba si existen actualizaciones pendientes en el repositorio remoto."},
+                    {"flag": "--update", "type": "boolean", "description": "Descarga e instala la última versión disponible de iafactory-qa-kit."},
+                    {"flag": "--version", "type": "boolean", "description": "Muestra la versión actual instalada y commit HEAD."},
+                    {"flag": "--json", "type": "boolean", "description": "Salida estructurada en JSON para procesamiento de agentes."}
+                ],
+                "examples": [
+                    "python skills/qa-update/scripts/update_plugin.py --check",
+                    "python skills/qa-update/scripts/update_plugin.py --check --json",
+                    "python skills/qa-update/scripts/update_plugin.py --update",
+                    "python skills/qa-update/scripts/update_plugin.py --version"
                 ]
             }
         }

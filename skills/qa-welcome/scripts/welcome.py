@@ -71,12 +71,21 @@ def main():
 
     data = get_status_data()
 
+    # Version check
+    try:
+        sys.path.append(os.path.join(SKILLS_DIR, "qa-update", "scripts"))
+        import update_plugin
+        data["plugin_info"] = update_plugin.get_local_version_info()
+    except Exception:
+        data["plugin_info"] = {"version": "1.1.0", "commit": "local"}
+
     print("=" * 65)
     print("  👋 BIENVENIDO AL PLUGIN IAFACTORY QA KIT (`iafactory-qa-kit`)")
     print("=" * 65)
     print("Kit autónomo y portable para Aseguramiento de Calidad y Observabilidad.")
     print(f"Plataforma: {data['platform']} | Python: {data['python_version']}")
-    print(f"Workspace : {data['workspace_root']}")
+    p_info = data.get("plugin_info", {})
+    print(f"Plugin    : v{p_info.get('version', '1.0.0')} (Commit: `{p_info.get('commit', 'local')}`) | Workspace: {data['workspace_root']}")
     print(f"Usuario   : 👤 {data['reporter']}")
     print("-" * 65)
     

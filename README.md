@@ -59,9 +59,12 @@ iafactory-qa-kit/
     ├── qa-finish/              # Aprobación y cierre formal (MD + Notion + 'Finalizada')
     │   ├── SKILL.md
     │   └── scripts/qa_finish_publisher.py
-    └── qa-rejection/           # Rechazo formal de QA (MD + Warning Banner + 'Rechazada por QA')
+    ├── qa-rejection/           # Rechazo formal de QA (MD + Warning Banner + 'Rechazada por QA')
+    │   ├── SKILL.md
+    │   └── scripts/qa_rejection_publisher.py
+    └── qa-update/              # Verificación de versiones y auto-actualización del plugin
         ├── SKILL.md
-        └── scripts/qa_rejection_publisher.py
+        └── scripts/update_plugin.py
 ```
 
 ---
@@ -91,7 +94,16 @@ python skills/qa-help/scripts/help.py --skill qa-code-audit
 python skills/qa-welcome/scripts/welcome.py
 ```
 
-### 2. Comandos Principales para Asistentes de IA y Desarrolladores
+### 3. Verificación de Actualizaciones
+```bash
+# Comprobar si hay una versión más reciente del plugin
+python skills/qa-update/scripts/update_plugin.py --check
+
+# Actualizar el plugin a la última versión disponible
+python skills/qa-update/scripts/update_plugin.py --update
+```
+
+### 4. Comandos Principales para Asistentes de IA y Desarrolladores
 
 ```bash
 # 1. Consultar Backlog activo (Issues en Revisión o Pendientes):

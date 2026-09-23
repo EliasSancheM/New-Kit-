@@ -89,6 +89,7 @@ def main():
     parser.add_argument("--issue", type=str, default=None, help="Target defect ID (e.g. AF-185) to resolve its commits from Sheets")
     parser.add_argument("--repo", type=str, default="all", help="Target repository (or 'all')")
     parser.add_argument("--commit", type=str, default=None, help="Target commit hash to inspect directly")
+    parser.add_argument("--run-tests", action="store_true", help="Ejecutar pruebas unitarias dirigidas localmente con fast_test_runner.py (omitido por defecto, cubierto en Jenkins)")
     parser.add_argument("--json", action="store_true", help="Output as JSON")
 
     args = parser.parse_args()
@@ -106,11 +107,28 @@ def main():
     for r in targets:
         audits.append(audit_repo(r, commit_hashes=commit_hashes))
 
+    # Ejecución opcional de tests unitarios solo bajo flag --run-tests
+    test_results = None
+    if args.run_tests:
+        runner_script = os.path.join(os.path.dirname(__file__), "fast_test_runner.py")
+        if os.path.exists(runner_script):
+            try:
+                # Correr suite voseo como baseline representativo
+                t_proc = subprocess.run([sys.executable, runner_script, "--agent", "all", "--test-voseo", "--json"], capture_output=True, text=True, timeout=45)
+                if t_proc.stdout:
+                    test_results = json.loads(t_proc.stdout)
+                else:
+                    test_results = {"executed": True, "raw": t_proc.stderr}
+            except Exception as e:
+                test_results = {"executed": True, "error": str(e)}
+
     output_payload = {
         "issue": args.issue,
         "issue_metadata": issue_data,
         "resolved_commits": commit_hashes,
-        "audits": audits
+        "audits": audits,
+        "tests_executed": args.run_tests,
+        "test_results": test_results
     }
 
     if args.json:
@@ -142,6 +160,15 @@ def main():
             print(f"  - **Últimos commits:** {', '.join(a.get('recent_commits')[:2])}")
             if a.get("diff_head"):
                 print(f"  - **Diff HEAD~1:**\n```\n{a.get('diff_head')}\n```")
+
+    print("\n🧪 **Validación de Tests:**")
+    if args.run_tests:
+        if test_results and test_results.get("success"):
+            print("  ✅ Tests ejecutados localmente: PASÓ")
+        else:
+            print(f"  ⚠️ Tests ejecutados localmente: {test_results}")
+    else:
+        print("  ℹ️ Omitida por defecto (cubierta por Jenkins CI/CD). Usa `--run-tests` para forzar ejecución local.")
 
 if __name__ == "__main__":
     main()
