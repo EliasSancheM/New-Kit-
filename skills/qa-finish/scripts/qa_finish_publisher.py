@@ -51,8 +51,15 @@ def generate_local_success_report(defect_id: str, summary: str, test_details: st
         f.write(content)
     return filepath, content
 
-def process_qa_finish(defect_id: str, summary: str, test_details: str, verification_result: str, level1_page_id: str = None):
+def process_qa_finish(defect_id: str, summary: str, test_details: str, verification_result: str, level1_page_id: str = None, dry_run: bool = False):
     user_name = utils.get_user_name()
+    if dry_run:
+        return utils.publish_qa_outcome(
+            defect_id=defect_id, page_suffix="reporte_exito_qa", content="", status="Finalizada",
+            severity=None, summary_or_reason=summary, comment_label="Reporte de éxito",
+            evidence=test_details, tech_details=verification_result,
+            level1_page_id=level1_page_id, dry_run=True,
+        )
     filepath, content = generate_local_success_report(defect_id, summary, test_details, verification_result, user_name)
     print(f"Reporte de éxito local generado: {filepath}")
 
@@ -61,7 +68,7 @@ def process_qa_finish(defect_id: str, summary: str, test_details: str, verificat
         page_suffix="reporte_exito_qa",
         content=content,
         status="Finalizada",
-        severity="Media",
+        severity=None,  # read from the sheet's GRAVEDAD column
         summary_or_reason=summary,
         comment_label="Reporte de éxito",
         evidence=test_details,
@@ -76,20 +83,27 @@ def process_qa_finish(defect_id: str, summary: str, test_details: str, verificat
         "local_file": filepath,
         "notion_url": result["notion_url"],
         "status": result["status"],
-        "cerrada_por": result["user_name"]
+        "cerrada_por": result["user_name"],
+        "sheet_updated": result["sheet_updated"]
     }
 
 if __name__ == "__main__":
-    if len(sys.argv) < 4:
-        print("Usage: python qa_finish_publisher.py <defect_id> <summary> <test_details> [verification_result] [level1_page_id]")
-        sys.exit(1)
-        
+    dry_run = "--dry-run" in sys.argv
+    args = [a for a in sys.argv[1:] if a != "--dry-run"]
+    if len(args) < 3:
+        print("Usage: python qa_finish_publisher.py [--dry-run] <defect_id> <summary> <test_details> [verification_result] [level1_page_id]")
+        sys.exit(2)
+
     res = process_qa_finish(
-        defect_id=sys.argv[1],
-        summary=sys.argv[2],
-        test_details=sys.argv[3],
-        verification_result=sys.argv[4] if len(sys.argv) > 4 else "Prueba completada exitosamente sin hallazgos.",
-        level1_page_id=sys.argv[5] if len(sys.argv) > 5 else None
+        defect_id=args[0],
+        summary=args[1],
+        test_details=args[2],
+        verification_result=args[3] if len(args) > 3 else "Prueba completada exitosamente sin hallazgos.",
+        level1_page_id=args[4] if len(args) > 4 else None,
+        dry_run=dry_run
     )
-    if res:
-        print(json.dumps(res, indent=2))
+    if not res:
+        sys.exit(1)
+    print(json.dumps(res, indent=2, ensure_ascii=False))
+    # Exit 3 = Notion published but Sheets not updated (partial success)
+    sys.exit(0 if dry_run or res.get("sheet_updated") else 3)

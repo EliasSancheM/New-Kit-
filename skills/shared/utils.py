@@ -5,6 +5,7 @@ import time
 import json
 import subprocess
 import urllib.request
+import urllib.error
 import ssl
 import tempfile
 
@@ -17,18 +18,26 @@ if hasattr(sys.stderr, "reconfigure"):
 # ---------------------------------------------------------------------------
 # TLS & Corporate Proxy Configuration
 # ---------------------------------------------------------------------------
-# Defaults to strict verified TLS (0). Set QA_KIT_INSECURE_TLS=1 only in
-# environments with known MITM proxies (e.g., Avast/Corporate firewalls).
+# Defaults to strict verified TLS.
+# - QA_KIT_TLS_RELAX_STRICT=1: keeps certificate verification but clears
+#   VERIFY_X509_STRICT (Python 3.13+ default). Fixes "Basic Constraints of CA
+#   cert not marked critical" behind proxies/antivirus that re-sign certs.
+# - QA_KIT_INSECURE_TLS=1: disables verification entirely (last resort).
 def get_ssl_context() -> ssl.SSLContext:
     if os.environ.get("QA_KIT_INSECURE_TLS", "0") == "1":
         return ssl._create_unverified_context()
-    try:
-        return ssl.create_default_context()
-    except Exception:
-        return ssl._create_unverified_context()
+    ctx = ssl.create_default_context()
+    bundle = os.environ.get("QA_KIT_CA_BUNDLE")
+    if bundle and os.path.exists(bundle):
+        ctx.load_verify_locations(cafile=bundle)
+    if os.environ.get("QA_KIT_TLS_RELAX_STRICT", "0") == "1" and hasattr(ssl, "VERIFY_X509_STRICT"):
+        ctx.verify_flags &= ~ssl.VERIFY_X509_STRICT
+    return ctx
 
 if os.environ.get("QA_KIT_INSECURE_TLS", "0") == "1":
     ssl._create_default_https_context = ssl._create_unverified_context
+elif os.environ.get("QA_KIT_TLS_RELAX_STRICT", "0") == "1":
+    ssl._create_default_https_context = get_ssl_context
 
 # ---------------------------------------------------------------------------
 # Dynamic Workspace and Plugin Path Resolution (Cross-Platform & Portable)
@@ -51,35 +60,136 @@ def get_token_cache_dir() -> str:
 def get_token_cache_path() -> str:
     return os.path.join(get_token_cache_dir(), "gcloud_token.json")
 
+DEFAULT_PRODUCT_REPOS = ["ai-factory-core", "ai-factory-agents", "ai-factory-frontend", "ai-factory-platform"]
+
+def _read_env_key(key: str) -> str:
+    """Reads a single key from the plugin .env before WORKSPACE_ROOT is known."""
+    if os.environ.get(key):
+        return os.environ[key]
+    fpath = os.path.join(PLUGIN_ROOT, ".env")
+    if os.path.exists(fpath):
+        with open(fpath, "r", encoding="utf-8") as f:
+            for line in f:
+                if line.strip().startswith(f"{key}="):
+                    return line.split("=", 1)[1].strip().strip('"').strip("'")
+    return ""
+
+def _apply_ca_bundle():
+    """QA_KIT_CA_BUNDLE: PEM with the public CAs plus a local interception CA
+    (antivirus/corporate proxy). Python requests trust it via get_ssl_context();
+    gcloud subprocesses (API calls, SSH and IAP tunnels) via
+    CLOUDSDK_CORE_CUSTOM_CA_CERTS_FILE, set only for this process tree.
+    Build it with skills/qa-preflight/scripts/build_ca_bundle.py."""
+    for key in ("QA_KIT_CA_BUNDLE", "QA_KIT_TLS_RELAX_STRICT"):
+        val = _read_env_key(key)
+        if val:
+            os.environ.setdefault(key, val)
+    bundle = os.environ.get("QA_KIT_CA_BUNDLE")
+    if bundle and os.path.exists(bundle):
+        os.environ.setdefault("CLOUDSDK_CORE_CUSTOM_CA_CERTS_FILE", bundle)
+    if os.environ.get("QA_KIT_INSECURE_TLS") != "1" and (bundle or os.environ.get("QA_KIT_TLS_RELAX_STRICT") == "1"):
+        ssl._create_default_https_context = get_ssl_context
+
+_apply_ca_bundle()
+
+def get_product_repos() -> list[str]:
+    """Product repo folder names, relative to WORKSPACE_ROOT (QA_KIT_REPOS=a,b,c)."""
+    raw = _read_env_key("QA_KIT_REPOS")
+    repos = [r.strip() for r in raw.split(",") if r.strip()] if raw else []
+    return repos or DEFAULT_PRODUCT_REPOS
+
+# ---------------------------------------------------------------------------
+# Remote VM environments (dev / qa / team-devs ...)
+# ---------------------------------------------------------------------------
+# Team-shared definitions live in <KIT>/environments.json; personal overrides in
+# <KIT>/environments.local.json (gitignored). Each environment gets its own
+# local port offset so several IAP tunnels can run in parallel.
+DEFAULT_ENVIRONMENTS = {
+    "dev": {
+        "instance": "iafactory-dev",
+        "zone": "us-central1-a",
+        "project": "apiux-iafactory-nonprod",
+        "port_offset": 0,
+        "api_url": "https://aifactory-dev.api-ux.dev",
+        "remote_repo_root": "/opt/ai-factory",
+    }
+}
+
+def get_environments() -> dict:
+    envs = {k: dict(v) for k, v in DEFAULT_ENVIRONMENTS.items()}
+    for fname in ("environments.json", "environments.local.json"):
+        fpath = os.path.join(PLUGIN_ROOT, fname)
+        if not os.path.exists(fpath):
+            continue
+        try:
+            with open(fpath, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception as e:
+            print(f"Warning: no se pudo leer {fname} ({e})", file=sys.stderr)
+            continue
+        for name, cfg in (data.get("environments") or {}).items():
+            envs.setdefault(name, {}).update({k: v for k, v in cfg.items() if not k.startswith("_")})
+    return envs
+
+def get_default_environment_name() -> str:
+    return _read_env_key("QA_KIT_ENV") or "dev"
+
+def resolve_environment(name: str = None) -> dict:
+    """Returns the environment config (with 'name'). Legacy GCP_INSTANCE /
+    GCP_ZONE / GCP_PROJECT env vars only override the default environment, so
+    an explicit --env never silently points at another VM.
+    Raises ValueError for unknown or incomplete environments."""
+    envs = get_environments()
+    default_name = get_default_environment_name()
+    name = name or default_name
+    if name not in envs:
+        raise ValueError(f"Entorno '{name}' no definido. Disponibles: {', '.join(sorted(envs))}. "
+                         f"Agrégalo en environments.json o environments.local.json del kit.")
+    cfg = dict(envs[name])
+    cfg["name"] = name
+    if name == default_name:
+        for key, var in (("instance", "GCP_INSTANCE"), ("zone", "GCP_ZONE"), ("project", "GCP_PROJECT")):
+            if os.environ.get(var):
+                cfg[key] = os.environ[var]
+    missing = [k for k in ("instance", "zone", "project") if not cfg.get(k)]
+    if missing:
+        raise ValueError(f"Entorno '{name}' incompleto: falta {', '.join(missing)} en environments.json.")
+    cfg.setdefault("port_offset", 0)
+    cfg.setdefault("remote_repo_root", "/opt/ai-factory")
+    return cfg
+
+def iap_extra_args() -> list[str]:
+    """Opt-in workaround for antivirus/proxies that intercept the IAP websocket
+    (QA_KIT_IAP_INSECURE_WS=1). Disables cert checks on that websocket only."""
+    if _read_env_key("QA_KIT_IAP_INSECURE_WS") == "1":
+        return ["--iap-tunnel-insecure-disable-websocket-cert-check"]
+    return []
+
+def _is_workspace_root(path: str) -> bool:
+    if os.path.exists(os.path.join(path, ".qa-kit-root")) or \
+       os.path.exists(os.path.join(path, "MANIFIESTO_WORKSPACE.md")) or \
+       os.path.exists(os.path.join(path, "Reportes")):
+        return True
+    return any(os.path.isdir(os.path.join(path, r)) for r in get_product_repos())
+
 def detect_workspace_root() -> str:
-    """Traverses upward from CWD or plugin location to locate workspace root."""
-    env_root = os.environ.get("WORKSPACE_ROOT")
+    """Locates the workspace root. Priority: WORKSPACE_ROOT env/.env, then upward
+    search (from CWD, then from the plugin) for a '.qa-kit-root' marker,
+    'Reportes/', MANIFIESTO_WORKSPACE.md or any configured product repo folder."""
+    env_root = _read_env_key("WORKSPACE_ROOT")
     if env_root and os.path.exists(env_root):
         return os.path.abspath(env_root)
 
-    # 1. Search upwards from current working directory
-    current = os.path.abspath(os.getcwd())
-    for _ in range(7):
-        if os.path.exists(os.path.join(current, "MANIFIESTO_WORKSPACE.md")) or \
-           os.path.exists(os.path.join(current, "Reportes")):
-            return current
-        parent = os.path.dirname(current)
-        if parent == current:
-            break
-        current = parent
+    for start in (os.getcwd(), os.path.dirname(PLUGIN_ROOT)):
+        current = os.path.abspath(start)
+        for _ in range(7):
+            if _is_workspace_root(current):
+                return current
+            parent = os.path.dirname(current)
+            if parent == current:
+                break
+            current = parent
 
-    # 2. Search upwards from plugin location (submodule case)
-    current = os.path.abspath(UTILS_DIR)
-    for _ in range(7):
-        if os.path.exists(os.path.join(current, "MANIFIESTO_WORKSPACE.md")) or \
-           os.path.exists(os.path.join(current, "Reportes")):
-            return current
-        parent = os.path.dirname(current)
-        if parent == current:
-            break
-        current = parent
-
-    # 3. Fallback to CWD
     return os.path.abspath(os.getcwd())
 
 WORKSPACE_ROOT = detect_workspace_root()
@@ -224,6 +334,29 @@ def get_notion_token():
 _GCLOUD_TOKEN_MEM_CACHE = {"token": None, "ts": 0}
 _COLUMN_MAPPING_CACHE = None
 
+def invalidate_gcloud_token():
+    """Drops the in-memory and file token caches (e.g. after a 401)."""
+    _GCLOUD_TOKEN_MEM_CACHE["token"] = None
+    try:
+        os.remove(get_token_cache_path())
+    except OSError:
+        pass
+
+def google_urlopen(req: urllib.request.Request, timeout: int = 20):
+    """urlopen for Google APIs: on 401 the cached token is stale/revoked, so it
+    invalidates the cache, fetches a fresh gcloud token and retries once."""
+    try:
+        return urllib.request.urlopen(req, context=get_ssl_context(), timeout=timeout)
+    except urllib.error.HTTPError as e:
+        if e.code != 401 or os.environ.get("GCLOUD_ACCESS_TOKEN"):
+            raise
+        invalidate_gcloud_token()
+        fresh = get_gcloud_token()
+        if not fresh:
+            raise
+        req.add_header("Authorization", f"Bearer {fresh}")
+        return urllib.request.urlopen(req, context=get_ssl_context(), timeout=timeout)
+
 def get_gcloud_token() -> str:
     # 0. In-memory cache (30 min TTL)
     now = time.time()
@@ -294,7 +427,7 @@ def get_column_mapping() -> dict[str, str]:
     url = f"https://sheets.googleapis.com/v4/spreadsheets/{SPREADSHEET_ID}/values/{SHEET_NAME}!A1:Z1"
     req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
     try:
-        with urllib.request.urlopen(req, context=get_ssl_context(), timeout=15) as resp:
+        with google_urlopen(req, timeout=15) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             headers = data.get("values", [[]])[0]
             for idx, h in enumerate(headers):
@@ -336,7 +469,7 @@ def list_defects_from_sheets(status_filter: list[str] = None, limit: int = None)
 
     results = []
     try:
-        with urllib.request.urlopen(req, context=get_ssl_context(), timeout=20) as resp:
+        with google_urlopen(req, timeout=20) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             rows = data.get("values", [])
             
@@ -578,11 +711,20 @@ def call_notion_mcp(operation: str, payload: dict) -> dict:
 
     return None
 
+def obsidian_enabled() -> bool:
+    """The local Obsidian mirror is opt-in (QA_KIT_OBSIDIAN=1) so the kit never
+    creates docs/vault/ in a teammate's repo unasked."""
+    return _read_env_key("QA_KIT_OBSIDIAN") == "1"
+
 def ensure_obsidian_vault():
     os.makedirs(os.path.join(OBSIDIAN_VAULT_DIR, "defectos"), exist_ok=True)
     os.makedirs(os.path.join(OBSIDIAN_VAULT_DIR, "reportes"), exist_ok=True)
 
 def sync_obsidian_note(defect_id: str, title: str, status: str, severity: str, level1_url: str, subpage_url: str, evidence: str = "", tech_details: str = ""):
+    """One-way local mirror of a defect (docs/vault/defectos/AF-XXX.md). Nothing
+    reads it back. Each call rewrites the whole note. No-op unless opted in."""
+    if not obsidian_enabled():
+        return
     ensure_obsidian_vault()
     note_path = os.path.join(OBSIDIAN_VAULT_DIR, "defectos", f"{defect_id}.md")
     frontmatter = f"""---
@@ -592,7 +734,7 @@ status: "{status}"
 severity: "{severity}"
 level1_url: "{level1_url}"
 subpage_url: "{subpage_url}"
-last_tested: "{os.environ.get('QA_TEST_DATE', '2026-09-14')}"
+last_tested: "{os.environ.get('QA_TEST_DATE') or time.strftime('%Y-%m-%d')}"
 tags:
   - qa/defect
   - status/{status.lower().replace(' ', '_')}
@@ -646,7 +788,7 @@ def resolve_level1_from_sheet(defect_id: str) -> tuple[str, str]:
         token = get_gcloud_token()
         url = f"https://sheets.googleapis.com/v4/spreadsheets/{SPREADSHEET_ID}/values/{SHEET_NAME}!{col}{row_idx}"
         req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
-        with urllib.request.urlopen(req, context=get_ssl_context(), timeout=20) as resp:
+        with google_urlopen(req, timeout=20) as resp:
             data = json.loads(resp.read().decode("utf-8"))
         values = data.get("values", [])
         cell = values[0][0] if values and values[0] else ""
@@ -698,7 +840,7 @@ def find_sheet_row_for_defect(defect_id: str) -> int:
     url = f"https://sheets.googleapis.com/v4/spreadsheets/{SPREADSHEET_ID}/values/{SHEET_NAME}!{id_col}:{id_col}"
     req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
     try:
-        with urllib.request.urlopen(req, context=get_ssl_context(), timeout=20) as resp:
+        with google_urlopen(req, timeout=20) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             values = data.get("values", [])
             for r_idx, row in enumerate(values):
@@ -707,6 +849,24 @@ def find_sheet_row_for_defect(defect_id: str) -> int:
     except Exception as e:
         print(f"Error buscando fila de {defect_id}: {e}", file=sys.stderr)
     return None
+
+def get_sheet_cell(row_idx: int, key: str) -> str:
+    """Reads one mapped column (e.g. 'gravedad') of a sheet row. Returns '' on failure."""
+    token = get_gcloud_token()
+    if not token or not row_idx:
+        return ""
+    col = get_column_mapping().get(key)
+    if not col:
+        return ""
+    url = f"https://sheets.googleapis.com/v4/spreadsheets/{SPREADSHEET_ID}/values/{SHEET_NAME}!{col}{row_idx}"
+    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+    try:
+        with google_urlopen(req, timeout=20) as resp:
+            values = json.loads(resp.read().decode("utf-8")).get("values", [])
+        return values[0][0].strip() if values and values[0] else ""
+    except Exception as e:
+        print(f"Warning: no se pudo leer {key} de la fila {row_idx} ({e})", file=sys.stderr)
+        return ""
 
 def batch_update_sheet_row(row_idx: int, updates: dict):
     token = get_gcloud_token()
@@ -728,7 +888,7 @@ def batch_update_sheet_row(row_idx: int, updates: dict):
         headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
         method="POST"
     )
-    with urllib.request.urlopen(req, context=get_ssl_context(), timeout=20) as resp:
+    with google_urlopen(req, timeout=20) as resp:
         json.loads(resp.read().decode("utf-8"))
 
 def publish_qa_outcome(
@@ -736,30 +896,52 @@ def publish_qa_outcome(
     page_suffix: str,
     content: str,
     status: str,
-    severity: str,
+    severity: str | None,
     summary_or_reason: str,
     comment_label: str,
     evidence: str,
     tech_details: str,
     level1_page_id: str = None,
+    dry_run: bool = False,
 ) -> dict:
+    """Publishes a QA outcome subpage and updates Sheets + Obsidian.
+    Never creates a new Level-1 page: closing/rejecting a defect that has no
+    Level-1 page would create a duplicate, so it aborts instead.
+    Returns None on failure; the result carries 'sheet_updated'."""
     user_name = get_user_name()
     p1_id, p1_url = level1_page_id, None
     if not p1_id:
         p1_id, p1_url = resolve_level1_from_sheet(defect_id)
     if not p1_id:
-        p1_page = call_notion_mcp("create_page", {
-            "parent": {"type": "page_id", "page_id": DEFAULT_PARENT_PAGE_ID},
-            "title": f"{defect_id}_{summary_or_reason[:40]}",
-            "markdown": f"# {defect_id}\n\n{summary_or_reason}"
-        })
-        if p1_page:
-            p1_id = p1_page["id"]
-            p1_url = p1_page.get("url", "").replace("https://app.notion.com/p/", NOTION_PUBLIC_DOMAIN)
+        p1_id, p1_url = find_notion_level1_page_id(defect_id)
 
     if not p1_id:
-        print(f"Error: No se pudo resolver la página Nivel 1 de Notion para {defect_id}", file=sys.stderr)
+        print(
+            f"Error: No se encontró la página Nivel 1 de Notion para {defect_id}. "
+            f"No se crea una nueva para evitar duplicados; pásala explícitamente como level1_page_id.",
+            file=sys.stderr,
+        )
         return None
+
+    row_idx = find_sheet_row_for_defect(defect_id)
+    # Severity always comes from the sheet (the defect's real GRAVEDAD), never a fixed value
+    if not severity:
+        severity = get_sheet_cell(row_idx, "gravedad") or "Sin gravedad"
+    if dry_run:
+        return {
+            "dry_run": True,
+            "defect_id": defect_id,
+            "level1_page_id": p1_id,
+            "notion_subpage_title": f"{defect_id}_{page_suffix}",
+            "sheet_row": row_idx,
+            "gravedad": severity,
+            "obsidian_note": os.path.join(OBSIDIAN_VAULT_DIR, "defectos", f"{defect_id}.md") if obsidian_enabled() else None,
+            "sheet_updates": {
+                "estado": status,
+                "cerrada_por": user_name,
+                "comentario_qa": f"{summary_or_reason}. {comment_label}:\n<url de la subpágina>",
+            },
+        }
 
     clean_md = re.sub(r'\[([^\]]+)\]\(file:///[^\)]+\)', r'`\1`', content)
     page = call_notion_mcp("create_page", {
@@ -774,16 +956,19 @@ def publish_qa_outcome(
     pub_url = page.get("url", "").replace("https://app.notion.com/p/", NOTION_PUBLIC_DOMAIN)
     print(f"Subpágina publicada en Notion: {pub_url}")
 
+    sheet_updated = False
     try:
-        row_idx = find_sheet_row_for_defect(defect_id)
         if row_idx:
             batch_update_sheet_row(row_idx, {
                 "estado": status,
                 "cerrada_por": user_name,
                 "comentario_qa": f"{summary_or_reason}. {comment_label}:\n{pub_url}"
             })
+            sheet_updated = True
+        else:
+            print(f"Error: {defect_id} no está en Google Sheets; la hoja NO se actualizó.", file=sys.stderr)
     except Exception as e:
-        print(f"Warning al actualizar Google Sheets ({e})", file=sys.stderr)
+        print(f"Error al actualizar Google Sheets ({e}); la hoja NO se actualizó.", file=sys.stderr)
 
     sync_obsidian_note(
         defect_id=defect_id,
@@ -796,4 +981,4 @@ def publish_qa_outcome(
         tech_details=tech_details
     )
 
-    return {"defect_id": defect_id, "status": status, "notion_url": pub_url, "user_name": user_name}
+    return {"defect_id": defect_id, "status": status, "notion_url": pub_url, "user_name": user_name, "sheet_updated": sheet_updated}

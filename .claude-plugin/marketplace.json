@@ -1,0 +1,13 @@
+{
+  "name": "iafactory-qa",
+  "owner": {
+    "name": "Alonso Salas / IAFactory QA Team"
+  },
+  "plugins": [
+    {
+      "name": "iafactory-qa-kit",
+      "source": "./",
+      "description": "Kit de QA de IAFactory: backlog, auditoría de código, preflight y publicación de reportes en Notion y Google Sheets."
+    }
+  ]
+}

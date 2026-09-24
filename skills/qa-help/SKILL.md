@@ -1,24 +1,21 @@
 ---
 name: qa-help
-description: Displays a comprehensive, structured catalog of all skills, scripts, parameters, and flags available in the IAFactory QA Kit for quick reference by users and AI agents.
+description: Muestra el catálogo de skills, scripts y flags del IAFactory QA Kit. Úsala cuando el usuario pregunte qué puede hacer el kit, cómo se usa un script, qué flags tiene o pida ayuda con los comandos de QA. Solo lectura. / Command and flag catalog for the QA kit.
 ---
 
-# 📖 Skill: IAFactory QA Kit Command & Flag Catalog (`qa-help`)
+# QA Help (`qa-help`)
 
-Use this skill whenever a user or agent needs a quick reminder, sitemap, or syntax reference for all available skills and CLI scripts in `iafactory-qa-kit`.
-
----
-
-## 🛠️ Quick Commands
+> `<KIT>` es la carpeta raíz del kit: dos niveles por encima de este `SKILL.md`.
 
 ```bash
-# 1. Visual catalog of all skills, scripts, and flags
-python skills/qa-help/scripts/help.py
+# Catálogo completo
+python <KIT>/skills/qa-help/scripts/help.py
 
-# 2. Machine JSON catalog (structured documentation for AI agents)
-python skills/qa-help/scripts/help.py --json
+# JSON para procesarlo tú
+python <KIT>/skills/qa-help/scripts/help.py --json
 
-# 3. Filter help by specific skill or script name
-python skills/qa-help/scripts/help.py --skill qa-code-audit
-python skills/qa-help/scripts/help.py --skill qa-preflight
+# Solo una skill
+python <KIT>/skills/qa-help/scripts/help.py --skill qa-code-audit
 ```
+
+Si el usuario es nuevo en el kit, sugiere también `qa-welcome`.

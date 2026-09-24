@@ -1,28 +1,34 @@
 ---
 name: qa-welcome
-description: Explains IAFactory QA Kit architecture, workflows, prerequisites, and gives an interactive environment check and onboarding guide for new developers and AI assistants.
+description: Onboarding del IAFactory QA Kit. Explica cómo funciona el kit y el flujo de QA, y revisa el entorno (Python, git, gcloud, token de Notion, repos presentes). Úsala cuando alguien nuevo empiece a usar el kit, pregunte por dónde empezar o cómo configurarlo, o cuando haya que comprobar que la instalación está lista. Solo lectura. / Onboarding and environment check for the QA kit.
 ---
 
-# 👋 Skill: IAFactory QA Kit Onboarding & Welcome (`qa-welcome`)
+# QA Welcome (`qa-welcome`)
 
-Use this skill whenever a new developer, engineer, or AI assistant joins the workspace or wants to understand how the QA Kit works, how to run tests, and what commands are available.
-
----
-
-## 🛠️ Quick Execution
+> `<KIT>` es la carpeta raíz del kit: dos niveles por encima de este `SKILL.md`.
 
 ```bash
-# 1. Interactive Welcome & Environment Diagnostic
-python skills/qa-welcome/scripts/welcome.py
-
-# 2. Machine JSON Output (for AI agents)
-python skills/qa-welcome/scripts/welcome.py --json
+python <KIT>/skills/qa-welcome/scripts/welcome.py
+python <KIT>/skills/qa-welcome/scripts/welcome.py --json
 ```
 
----
+## Qué revisa
 
-## 💡 What this skill does
-1. **Detects Environment:** Verifies OS, Python version, Git status, Google Cloud auth, and Notion token.
-2. **Identifies User:** Shows active reporter identity (`USER_NAME`).
-3. **Inspects Submodules:** Checks presence of `ai-factory-core`, `ai-factory-agents`, `ai-factory-frontend`, and `ai-factory-platform`.
-4. **Displays Cheatsheet:** Prints essential commands for triage, diff auditing, preflight checks, and defect closure.
+1. Sistema operativo, versión de Python y git.
+2. Sesión de Google Cloud y token de Notion.
+3. Identidad con la que se firmarán los reportes (`USER_NAME` en el `.env`, o `git config user.name`).
+4. Qué repos de producto encuentra en el workspace.
+
+## Flujo de QA para explicar a alguien nuevo
+
+1. `qa-preflight`: comprobar que el entorno responde.
+2. `qa-backlog`: ver qué defectos esperan verificación.
+3. `qa-code-audit --issue AF-XXX`: revisar qué cambió el desarrollador.
+4. Probar el defecto.
+5. Cerrar con `qa-finish`, rechazar con `qa-rejection`, o registrar uno nuevo con `report-bug`. Los tres escriben en sistemas compartidos: siempre con `--dry-run` primero y confirmación del usuario.
+
+## Si falta configuración
+
+- Copiar `<KIT>/.env.example` a `<KIT>/.env` y completar `NOTION_TOKEN` y `USER_NAME`.
+- Si el workspace no tiene los repos de IAFactory con esos nombres, definir `QA_KIT_REPOS` y, si hace falta, `WORKSPACE_ROOT`.
+- Ejecutar `gcloud auth login --enable-gdrive-access`.

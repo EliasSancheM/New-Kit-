@@ -19,12 +19,8 @@ if hasattr(sys.stdout, "reconfigure"):
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "shared"))
 import utils
 
-REPOS = [
-    "ai-factory-core",
-    "ai-factory-agents",
-    "ai-factory-frontend",
-    "ai-factory-platform"
-]
+# Configurable via QA_KIT_REPOS (comma-separated folder names relative to WORKSPACE_ROOT)
+REPOS = utils.get_product_repos()
 
 def run_cmd(cmd, cwd):
     try:

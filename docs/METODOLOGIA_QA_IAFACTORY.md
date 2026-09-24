@@ -17,8 +17,8 @@ El ecosistema IAFactory opera bajo una estricta separación de responsabilidades
      - **Nivel 1 (Página Principal):** Resumen ejecutivo, contexto operativo, criterios de impacto y enlace en Google Sheets.
      - **Nivel 2 (Subpáginas Técnicas):** Análisis de causa raíz, logs de Docker, diffs de código y resoluciones/rechazos de QA (`_tecnico`, `_cierre`, `_rechazo`).
 
-3. **Obsidian Vault Local (`docs/vault/`):**
-   - Copia local de respaldo sincronizada de forma espejo para notas atómicas y trazabilidad offline.
+3. **Obsidian Vault Local (`docs/vault/`), opcional:**
+   - Espejo local de una sola dirección (el kit escribe, nada lo lee de vuelta). Desactivado por defecto; se activa con `QA_KIT_OBSIDIAN=1`. Cada publicación reescribe la nota completa del defecto con la gravedad real de la planilla.
 
 ---
 

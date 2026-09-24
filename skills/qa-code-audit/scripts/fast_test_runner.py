@@ -27,17 +27,16 @@ import json
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-# Encontrar la raíz del workspace buscando la carpeta de proyectos
-current = os.path.abspath(os.path.dirname(__file__))
-while current and not os.path.exists(os.path.join(current, "ai-factory-agents")):
-    parent = os.path.dirname(current)
-    if parent == current:
-        break
-    current = parent
-WORKSPACE_ROOT = current
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "shared"))
+import utils
+
+# Raíz y nombres de repos configurables (WORKSPACE_ROOT, QA_KIT_FRONTEND_REPO, QA_KIT_AGENTS_REPO)
+WORKSPACE_ROOT = utils.WORKSPACE_ROOT
+FRONTEND_REPO = utils._read_env_key("QA_KIT_FRONTEND_REPO") or "ai-factory-frontend"
+AGENTS_REPO = utils._read_env_key("QA_KIT_AGENTS_REPO") or "ai-factory-agents"
 
 def run_frontend_test(file_path=None, test_name=None):
-    frontend_dir = os.path.join(WORKSPACE_ROOT, "ai-factory-frontend")
+    frontend_dir = os.path.join(WORKSPACE_ROOT, FRONTEND_REPO)
     if not os.path.isdir(frontend_dir):
         return {"success": False, "error": f"No se encontró el directorio frontend: {frontend_dir}"}
 
@@ -67,7 +66,7 @@ def run_frontend_test(file_path=None, test_name=None):
     }
 
 def run_agent_voseo_tests(agent_target="all"):
-    agents_dir = os.path.join(WORKSPACE_ROOT, "ai-factory-agents")
+    agents_dir = os.path.join(WORKSPACE_ROOT, AGENTS_REPO)
     base_layer = os.path.join(agents_dir, "services", "core", "agent-layer")
     
     available_agents = [

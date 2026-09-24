@@ -25,11 +25,13 @@ def main():
     args = parser.parse_args()
 
     status_filters = [s.strip() for s in args.status.split(",") if s.strip()] if args.status != "all" else []
-    
-    defects = utils.list_defects_from_sheets(status_filter=status_filters, limit=args.limit)
 
     if args.id:
+        # A specific ID must be found whatever its status and row position
+        defects = utils.list_defects_from_sheets(status_filter=None, limit=None)
         defects = [d for d in defects if d["id"].upper() == args.id.upper()]
+    else:
+        defects = utils.list_defects_from_sheets(status_filter=status_filters, limit=args.limit)
 
     if args.json:
         print(json.dumps(defects, indent=2, ensure_ascii=False))

@@ -1,7 +1,7 @@
 # 📦 Plugin: IAFactory QA Kit (`iafactory-qa-kit`)
 ### Kit Autónomo, Portable y Multi-IA para Aseguramiento de Calidad y Observabilidad
 
-El plugin **`iafactory-qa-kit`** empaqueta en una única unidad distribuible todo el ciclo de vida de defectos, sincronización bidireccional (Google Sheets + Notion + Obsidian Vault), auditoría de cambios Git y chequeos de conectividad para **IAFactory**.
+El plugin **`iafactory-qa-kit`** empaqueta en una única unidad distribuible todo el ciclo de vida de defectos, publicación en Google Sheets y Notion (con espejo local opcional en Obsidian), auditoría de cambios Git y chequeos de conectividad para **IAFactory**.
 
 ---
 
@@ -69,11 +69,39 @@ iafactory-qa-kit/
 
 ---
 
-## ⚡ Instalación en 1 Prompt (Para Asistentes de IA como Claude, Antigravity o Cursor)
+## ⚡ Instalación
 
-Para instalar y activar este plugin en cualquier workspace nuevo, basta con entregarle este prompt a tu asistente:
+Las skills son carpetas con un `SKILL.md` y scripts en Python (solo biblioteca estándar), así que funcionan con cualquier asistente. En los `SKILL.md`, `<KIT>` significa la carpeta raíz del kit.
 
-> *"Instala el plugin IAFactory QA Kit desde `https://github.com/AlonsoSalasApiux/iafactory-qa-kit.git` registrándolo como git submodule en `.agents/plugins/iafactory-qa-kit`, ejecuta `python .agents/plugins/iafactory-qa-kit/skills/qa-welcome/scripts/welcome.py` y presenta el estado de los servicios."*
+### Claude Code (recomendado para Claude)
+
+Como plugin, desde una sesión interactiva de Claude Code:
+
+```
+/plugin marketplace add AlonsoSalasApiux/iafactory-qa-kit
+/plugin install iafactory-qa-kit@iafactory-qa
+```
+
+Alternativa sin gestor de plugins: clona el kit en tu workspace y enlaza cada carpeta de `skills/` (menos `shared/`) dentro de `.claude/skills/` del workspace.
+
+### Otros asistentes (Antigravity, Cursor, Windsurf, Codex...)
+
+Clona el kit en tu workspace (por ejemplo, en `.agents/plugins/iafactory-qa-kit`) y agrega a las instrucciones del asistente (`AGENTS.md`, `.cursorrules`, etc.) una referencia a `rules/AGENTS.md` y a `skills/*/SKILL.md`. Prompt de instalación:
+
+> *"Instala el IAFactory QA Kit desde `https://github.com/AlonsoSalasApiux/iafactory-qa-kit.git` en `.agents/plugins/iafactory-qa-kit`, ejecuta `python .agents/plugins/iafactory-qa-kit/skills/qa-welcome/scripts/welcome.py` y preséntame el estado del entorno."*
+
+### Configuración
+
+1. Copia `.env.example` a `.env` y completa `NOTION_TOKEN` y `USER_NAME`.
+2. Ejecuta `gcloud auth login --enable-gdrive-access`.
+3. **VMs (dev, qa, team-devs):** vienen definidas en `environments.json`. Usa `--env <nombre>` en los scripts de `qa-preflight`, o `QA_KIT_ENV` en el `.env` para fijar la VM por defecto.
+4. **Si gcloud o los scripts fallan con `CERTIFICATE_VERIFY_FAILED`** (antivirus o proxy que intercepta TLS): ejecuta `python skills/qa-preflight/scripts/build_ca_bundle.py` y agrega al `.env` la línea que imprime.
+5. **Obsidian (opcional):** `QA_KIT_OBSIDIAN=1` activa el espejo local `docs/vault/defectos/`.
+6. **Si tu workspace no tiene la estructura de IAFactory:** define `QA_KIT_REPOS` (carpetas de los repos de producto) y, si la autodetección falla, `WORKSPACE_ROOT`. También puedes crear un archivo vacío `.qa-kit-root` en la raíz de tu workspace para marcarla.
+
+### Seguridad al publicar
+
+`report-bug`, `qa-finish` y `qa-rejection` escriben en Notion y Google Sheets compartidos. Todos aceptan `--dry-run`, que muestra lo que se escribiría sin tocar nada. Los `SKILL.md` obligan al asistente a hacer dry-run y pedir confirmación antes de publicar. Código de salida `3` = éxito parcial (por ejemplo, Notion publicado pero Sheets no actualizado).
 
 ---
 

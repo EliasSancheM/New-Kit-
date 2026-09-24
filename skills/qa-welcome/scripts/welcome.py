@@ -16,7 +16,7 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-SKILLS_DIR = os.path.dirname(SCRIPT_DIR)
+SKILLS_DIR = os.path.dirname(os.path.dirname(SCRIPT_DIR))
 SHARED_DIR = os.path.join(SKILLS_DIR, "shared")
 PLUGIN_ROOT = os.path.dirname(SKILLS_DIR)
 
@@ -40,7 +40,7 @@ def get_status_data():
     if utils:
         data["reporter"] = utils.get_user_name()
         ntok = utils.get_notion_token()
-        data["notion_token"] = bool(ntok and ntok.startswith("ntn_"))
+        data["notion_token"] = bool(ntok)
 
     # Check gcloud
     if shutil.which("gcloud"):
@@ -58,7 +58,8 @@ def get_status_data():
 
     # Check submodules in workspace root
     ws = data["workspace_root"]
-    for repo in ["ai-factory-core", "ai-factory-agents", "ai-factory-frontend", "ai-factory-platform"]:
+    repos = utils.get_product_repos() if utils else ["ai-factory-core", "ai-factory-agents", "ai-factory-frontend", "ai-factory-platform"]
+    for repo in repos:
         repo_path = os.path.join(ws, repo)
         data["submodules"][repo] = os.path.exists(repo_path)
 

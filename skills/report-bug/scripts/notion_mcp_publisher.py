@@ -17,7 +17,8 @@ def publish_nested_defect_pages(
     tech_md_path: str,
     defect_id: str,
     short_title: str,
-    parent_page_id: str = None
+    parent_page_id: str = None,
+    dry_run: bool = False
 ) -> dict:
     parent_page_id = parent_page_id or utils.DEFAULT_PARENT_PAGE_ID
     
@@ -33,7 +34,16 @@ def publish_nested_defect_pages(
     page1_id, page1_url = utils.resolve_level1_from_sheet(defect_id)
     if not page1_id:
         page1_id, page1_url = utils.find_notion_level1_page_id(defect_id)
-    
+
+    if dry_run:
+        return {
+            "dry_run": True,
+            "parent_page_id": parent_page_id,
+            "level1": {"action": "reuse", "id": page1_id, "url": page1_url} if page1_id
+                      else {"action": "create", "title": f"{defect_id}_{short_title}"},
+            "level2": {"action": "create", "title": f"{defect_id}_{short_title}_tecnico"},
+        }
+
     if not page1_id:
         level1_title = f"{defect_id}_{short_title}"
         payload_level1 = {
@@ -68,16 +78,20 @@ def publish_nested_defect_pages(
     }
 
 if __name__ == "__main__":
-    if len(sys.argv) < 5:
-        print("Usage: python notion_mcp_publisher.py <short_md_path> <tech_md_path> <defect_id> <short_title> [parent_page_id]")
-        sys.exit(1)
-        
+    dry_run = "--dry-run" in sys.argv
+    args = [a for a in sys.argv[1:] if a != "--dry-run"]
+    if len(args) < 4:
+        print("Usage: python notion_mcp_publisher.py [--dry-run] <short_md_path> <tech_md_path> <defect_id> <short_title> [parent_page_id]")
+        sys.exit(2)
+
     res = publish_nested_defect_pages(
-        short_md_path=sys.argv[1],
-        tech_md_path=sys.argv[2],
-        defect_id=sys.argv[3],
-        short_title=sys.argv[4],
-        parent_page_id=sys.argv[5] if len(sys.argv) > 5 else None
+        short_md_path=args[0],
+        tech_md_path=args[1],
+        defect_id=args[2],
+        short_title=args[3],
+        parent_page_id=args[4] if len(args) > 4 else None,
+        dry_run=dry_run
     )
-    if res:
-        print(json.dumps(res, indent=2))
+    print(json.dumps(res, indent=2, ensure_ascii=False))
+    # Exit 3 = Level 1 ok but Level 2 (technical page) failed
+    sys.exit(0 if dry_run or res.get("level2_id") else 3)

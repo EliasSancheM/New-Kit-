@@ -1,0 +1,31 @@
+{
+  "_comment": "Entornos remotos (VMs) compartidos por el equipo. Cada uno usa un port_offset distinto para poder tener varios túneles IAP abiertos a la vez: el puerto local es puerto_remoto + port_offset (por ejemplo, Postgres de qa en 15432). Para ajustes personales usa environments.local.json (no se versiona).",
+  "environments": {
+    "dev": {
+      "instance": "iafactory-dev",
+      "zone": "us-central1-a",
+      "project": "apiux-iafactory-nonprod",
+      "port_offset": 0,
+      "api_url": "https://aifactory-dev.api-ux.dev",
+      "remote_repo_root": "/opt/ai-factory"
+    },
+    "qa": {
+      "_pendiente": "api_url: sin ella, refresh_auth usa la API por el túnel (127.0.0.1:18000)",
+      "instance": "iafactory-qa",
+      "zone": "us-central1-a",
+      "project": "apiux-iafactory-nonprod",
+      "port_offset": 10000,
+      "api_url": "",
+      "remote_repo_root": "/opt/ai-factory"
+    },
+    "team-devs": {
+      "_pendiente": "api_url: sin ella, refresh_auth usa la API por el túnel (127.0.0.1:28000)",
+      "instance": "team-dev",
+      "zone": "us-central1-f",
+      "project": "apiux-iafactory-nonprod",
+      "port_offset": 20000,
+      "api_url": "",
+      "remote_repo_root": "/opt/ai-factory"
+    }
+  }
+}

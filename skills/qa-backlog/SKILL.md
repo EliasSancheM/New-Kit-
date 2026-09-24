@@ -1,34 +1,37 @@
 ---
 name: qa-backlog
-description: Standalone skill to inspect, filter, and triage active QA defects from Google Sheets online. Delivers structured JSON or Markdown summaries for AI agents and users.
+description: Consulta el backlog de defectos QA (AF-XXX) en la planilla de Google Sheets. Úsala cuando el usuario pregunte qué defectos hay pendientes, en revisión o reportados, pida el estado o detalle de un AF-XXX, quiera priorizar el backlog o diga "qué hay para probar". Solo lectura. / Read-only QA defect backlog lookup from Google Sheets.
 ---
 
-# 📋 Skill: QA Backlog Triage (`qa-backlog`)
+# QA Backlog (`qa-backlog`)
 
-Use this skill whenever you need to inspect pending defects, filter issues by status (`Pendiente`, `En Revisión`, `Reportada`), or search details of a specific `AF-XXX` issue from Google Sheets without manual queries.
+Lee la planilla de defectos y devuelve los AF-XXX filtrados por estado o ID. **Es de solo lectura**: se puede ejecutar sin pedir confirmación.
 
----
+> `<KIT>` es la carpeta raíz del kit: dos niveles por encima de este `SKILL.md` (por ejemplo `.agents/plugins/iafactory-qa-kit`). Ejecuta los comandos desde la raíz de tu workspace.
 
-## 🛠️ Usage Commands
+## Comandos
 
 ```bash
-# List all active defects (JSON format for agents)
-python .agents/plugins/iafactory-qa-kit/skills/qa-backlog/scripts/fetch_issues.py --status "Pendiente,En Revisión,Reportada" --json
+# Defectos activos (usa --json para procesarlos tú; muéstrale al usuario una tabla Markdown)
+python <KIT>/skills/qa-backlog/scripts/fetch_issues.py --status "Pendiente,En Revisión,Reportada" --json
 
-# List specific issue details
-python .agents/plugins/iafactory-qa-kit/skills/qa-backlog/scripts/fetch_issues.py --id "AF-185" --json
+# Detalle de un defecto concreto
+python <KIT>/skills/qa-backlog/scripts/fetch_issues.py --id "AF-185" --json
 
-# Markdown table output for user
-python .agents/plugins/iafactory-qa-kit/skills/qa-backlog/scripts/fetch_issues.py --status "En Revisión"
+# Limitar resultados
+python <KIT>/skills/qa-backlog/scripts/fetch_issues.py --status "En Revisión" --limit 10
 ```
 
----
+## Campos del JSON
 
-## 🔑 Output Schema (JSON)
-* `id`: Defect identifier (`AF-XXX`)
-* `nombre`: Title / description summary
-* `estado`: Current workflow status
-* `gravedad`: `Critica`, `Alta`, `Media`, `Baja`
-* `responsable`: Assigned developer or agent
-* `commits` / `id_commits`: Associated commit hashes
-* `comentario_qa`: Notion URL and QA notes
+`id`, `nombre`, `estado`, `gravedad` (Critica/Alta/Media/Baja), `responsable`, `descripcion`, `reportada_por`, `fecha_inicio`, `commits`, `id_commits`, `comentario_dev`, `comentario_qa` (suele contener la URL de Notion), `row` (fila en la hoja).
+
+## Si falla
+
+- **"No se detectó sesión activa de gcloud"** o lista vacía: falta el login de Google con acceso a Drive. Dile al usuario que ejecute `gcloud auth login --enable-gdrive-access`.
+- **`CERTIFICATE_VERIFY_FAILED`**: hay un proxy o antivirus que re-firma certificados. Sugiere definir `QA_KIT_TLS_RELAX_STRICT=1` en el `.env` del kit.
+- No inventes defectos ni estados: si la consulta falla, dilo tal cual.
+
+## Siguiente paso habitual
+
+Para revisar el código de un defecto, usa `qa-code-audit --issue AF-XXX`.

@@ -40,21 +40,33 @@ def check_tcp_port(host, port, timeout=0.2):
 def main():
     parser = argparse.ArgumentParser(description="Pre-flight check for QA testing environment.")
     parser.add_argument("--json", action="store_true", help="Output as JSON")
+    parser.add_argument("--env", help="Entorno de environments.json (dev, qa, team-devs...). Por defecto QA_KIT_ENV o 'dev'")
     args = parser.parse_args()
 
+    try:
+        env = utils.resolve_environment(args.env)
+    except ValueError as e:
+        print(f"❌ {e}", file=sys.stderr)
+        sys.exit(2)
+    offset = env["port_offset"]
+
     results = {
+        "env": {"name": env["name"], "instance": env["instance"], "port_offset": offset},
         "ports": {},
         "credentials": {},
         "directories": {}
     }
 
-    # 1. Ports
+    # 1. Ports (local port = remote port + environment offset)
     for name, (host, port) in SERVICES.items():
-        open_status = check_tcp_port(host, port)
-        results["ports"][name] = {"port": port, "reachable": open_status}
+        open_status = check_tcp_port(host, port + offset)
+        results["ports"][name] = {"port": port + offset, "reachable": open_status}
 
     # 2. Credentials
-    gcloud_tok = utils.get_gcloud_token()
+    try:
+        gcloud_tok = utils.get_gcloud_token()
+    except RuntimeError:
+        gcloud_tok = None
     results["credentials"]["gcloud_auth"] = bool(gcloud_tok and not gcloud_tok.startswith("ERROR"))
 
     notion_tok = utils.get_notion_token()
@@ -62,13 +74,14 @@ def main():
 
     # 3. Directories
     results["directories"]["reports_dir"] = os.path.exists(utils.REPORTS_DIR)
-    results["directories"]["obsidian_vault"] = os.path.exists(utils.OBSIDIAN_VAULT_DIR)
+    # None = Obsidian mirror disabled (QA_KIT_OBSIDIAN != 1)
+    results["directories"]["obsidian_vault"] = os.path.exists(utils.OBSIDIAN_VAULT_DIR) if utils.obsidian_enabled() else None
 
     if args.json:
         print(json.dumps(results, indent=2))
         return
 
-    print("\n### 🚀 Diagnóstico de Pre-Flight (Entorno QA)")
+    print(f"\n### 🚀 Diagnóstico de Pre-Flight (entorno '{env['name']}': {env['instance']}, offset +{offset})")
     print("\n**1. Conectividad de Red y Túneles IAP:**")
     for name, data in results["ports"].items():
         icon = "✅" if data["reachable"] else "❌"
@@ -81,7 +94,10 @@ def main():
 
     print("\n**3. Directorios de Almacenamiento:**")
     print(f"  {'✅' if results['directories']['reports_dir'] else '⚠️'} Carpeta Reportes/: `{utils.REPORTS_DIR}`")
-    print(f"  {'✅' if results['directories']['obsidian_vault'] else '⚠️'} Obsidian Vault: `{utils.OBSIDIAN_VAULT_DIR}`")
+    if results["directories"]["obsidian_vault"] is None:
+        print("  ➖ Obsidian Vault: desactivado (QA_KIT_OBSIDIAN=1 para activarlo)")
+    else:
+        print(f"  {'✅' if results['directories']['obsidian_vault'] else '⚠️'} Obsidian Vault: `{utils.OBSIDIAN_VAULT_DIR}`")
 
 if __name__ == "__main__":
     main()

@@ -48,6 +48,8 @@ Cuando un asistente de IA ejecute tareas o deba procesar datos de las skills par
 9. **Para rechazar formalmente un defecto no resuelto:**
    Ejecuta: `python <PLUGIN_ROOT>/skills/qa-rejection/scripts/qa_rejection_publisher.py "AF-XXX" "<Motivo>" "<Detalle_Falla>" "<Cambios_Encontrados>"`
 
+> 🔒 **Regla de Escritura (pasos 7-9 y `notion_mcp_publisher.py`):** estos scripts escriben en Google Sheets y Notion, que son compartidos por todo el equipo. Antes de ejecutarlos, el asistente **DEBE** correrlos con `--dry-run`, mostrar al usuario lo que se va a escribir y esperar su confirmación explícita en el turno actual. Códigos de salida: `0` = ok, `1` = fallo, `2` = argumentos inválidos, `3` = éxito parcial (por ejemplo, Notion publicado pero Sheets no actualizado); ante `3` hay que avisar al usuario y no darlo por terminado.
+
 > 💡 **Regla de Formato:** El flag `--json` está destinado exclusivamente al consumo y lectura autónoma de la IA. Al presentar la respuesta final al usuario humano, la IA debe formatear los resultados en Markdown limpio, claro y legible.
 
 ---

@@ -12,6 +12,7 @@ auth/*.json
 # Local user configurations
 config.json
 *.local
+environments.local.json
 
 # Python Caches & Environments
 __pycache__/

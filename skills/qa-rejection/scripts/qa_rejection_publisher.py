@@ -60,8 +60,15 @@ La revisión y prueba de replicación en vivo para el issue **{defect_id}** ha s
         f.write(content)
     return filepath, content
 
-def process_qa_rejection(defect_id: str, reason: str, test_details: str, code_changes_found: str, level1_page_id: str = None):
+def process_qa_rejection(defect_id: str, reason: str, test_details: str, code_changes_found: str, level1_page_id: str = None, dry_run: bool = False):
     user_name = utils.get_user_name()
+    if dry_run:
+        return utils.publish_qa_outcome(
+            defect_id=defect_id, page_suffix="reporte_rechazo_qa", content="", status="Rechazada por QA",
+            severity=None, summary_or_reason=reason, comment_label="Reporte de rechazo",
+            evidence=test_details, tech_details=code_changes_found,
+            level1_page_id=level1_page_id, dry_run=True,
+        )
     filepath, content = generate_local_rejection_report(defect_id, reason, test_details, code_changes_found, user_name)
     print(f"Reporte de rechazo local generado: {filepath}")
 
@@ -70,7 +77,7 @@ def process_qa_rejection(defect_id: str, reason: str, test_details: str, code_ch
         page_suffix="reporte_rechazo_qa",
         content=content,
         status="Rechazada por QA",
-        severity="Alta",
+        severity=None,  # read from the sheet's GRAVEDAD column
         summary_or_reason=reason,
         comment_label="Reporte de rechazo",
         evidence=test_details,
@@ -85,20 +92,27 @@ def process_qa_rejection(defect_id: str, reason: str, test_details: str, code_ch
         "local_file": filepath,
         "notion_url": result["notion_url"],
         "status": result["status"],
-        "rechazada_por": result["user_name"]
+        "rechazada_por": result["user_name"],
+        "sheet_updated": result["sheet_updated"]
     }
 
 if __name__ == "__main__":
-    if len(sys.argv) < 5:
-        print("Usage: python qa_rejection_publisher.py <defect_id> <reason> <test_details> <code_changes_found> [level1_page_id]")
-        sys.exit(1)
-        
+    dry_run = "--dry-run" in sys.argv
+    args = [a for a in sys.argv[1:] if a != "--dry-run"]
+    if len(args) < 4:
+        print("Usage: python qa_rejection_publisher.py [--dry-run] <defect_id> <reason> <test_details> <code_changes_found> [level1_page_id]")
+        sys.exit(2)
+
     res = process_qa_rejection(
-        defect_id=sys.argv[1],
-        reason=sys.argv[2],
-        test_details=sys.argv[3],
-        code_changes_found=sys.argv[4],
-        level1_page_id=sys.argv[5] if len(sys.argv) > 5 else None
+        defect_id=args[0],
+        reason=args[1],
+        test_details=args[2],
+        code_changes_found=args[3],
+        level1_page_id=args[4] if len(args) > 4 else None,
+        dry_run=dry_run
     )
-    if res:
-        print(json.dumps(res, indent=2))
+    if not res:
+        sys.exit(1)
+    print(json.dumps(res, indent=2, ensure_ascii=False))
+    # Exit 3 = Notion published but Sheets not updated (partial success)
+    sys.exit(0 if dry_run or res.get("sheet_updated") else 3)

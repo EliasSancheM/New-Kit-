@@ -27,7 +27,7 @@ def audit_and_get_next_id_and_target_row() -> tuple:
     last_occupied_row_idx = 1
     
     try:
-        with urllib.request.urlopen(req) as resp:
+        with utils.google_urlopen(req, timeout=20) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             values = data.get("values", [])
             for r_idx, row in enumerate(values):
@@ -89,7 +89,7 @@ def insert_defect_row(defect_id: str, target_row: int, name: str, description: s
         method="PUT"
     )
     
-    with urllib.request.urlopen(req) as resp:
+    with utils.google_urlopen(req, timeout=20) as resp:
         json.loads(resp.read().decode("utf-8"))
         print(f"Successfully inserted {defect_id} at row {target_row} in Google Sheets!")
         
@@ -107,20 +107,28 @@ def insert_defect_row(defect_id: str, target_row: int, name: str, description: s
     return True
 
 if __name__ == "__main__":
-    if len(sys.argv) < 4 and not (len(sys.argv) == 2 and sys.argv[1] == "--audit"):
-        print("Usage: python gsheets_updater.py <defect_name> <description> <severity> [notion_url]")
-        print("Or run --audit to print next ID and target row.")
-        sys.exit(1)
-        
-    if len(sys.argv) == 2 and sys.argv[1] == "--audit":
+    dry_run = "--dry-run" in sys.argv
+    args = [a for a in sys.argv[1:] if a != "--dry-run"]
+
+    if args == ["--audit"]:
         nid, trow = audit_and_get_next_id_and_target_row()
         print(f"Next ID: {nid}\nTarget Row: {trow}")
         sys.exit(0)
-        
-    d_name = sys.argv[1]
-    d_desc = sys.argv[2]
-    d_severity = sys.argv[3]
-    n_url = sys.argv[4] if len(sys.argv) > 4 else ""
-    
+
+    if len(args) < 3:
+        print("Usage: python gsheets_updater.py [--dry-run] <defect_name> <description> <severity> [notion_url]")
+        print("Or run --audit to print next ID and target row.")
+        sys.exit(2)
+
+    d_name, d_desc, d_severity = args[0], args[1], args[2]
+    n_url = args[3] if len(args) > 3 else ""
+
     nid, trow = audit_and_get_next_id_and_target_row()
+    if dry_run:
+        print(json.dumps({
+            "dry_run": True, "defect_id": nid, "target_row": trow, "nombre": d_name,
+            "gravedad": d_severity, "descripcion": d_desc, "estado": "Reportada",
+            "reportada_por": utils.get_user_name(), "comentario_qa": n_url,
+        }, indent=2, ensure_ascii=False))
+        sys.exit(0)
     insert_defect_row(nid, trow, d_name, d_desc, d_severity, n_url)

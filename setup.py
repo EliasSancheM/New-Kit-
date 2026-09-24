@@ -101,11 +101,10 @@ def main():
             print("  ⚠️ Google Cloud Auth   : No se pudo verificar token.")
             print("     👉 Ejecuta: gcloud auth login --enable-gdrive-access")
 
-        # Test de salud con Compute Engine / VM iafactory-dev
+        # Test de salud con Compute Engine (VM del entorno por defecto, QA_KIT_ENV o 'dev')
         try:
-            gcp_inst = os.environ.get("GCP_INSTANCE", "iafactory-dev")
-            gcp_zone = os.environ.get("GCP_ZONE", "us-central1-a")
-            gcp_proj = os.environ.get("GCP_PROJECT", "apiux-iafactory-nonprod")
+            vm_env = utils.resolve_environment()
+            gcp_inst, gcp_zone, gcp_proj = vm_env["instance"], vm_env["zone"], vm_env["project"]
             cmd_vm = [
                 "gcloud", "compute", "instances", "describe", gcp_inst,
                 f"--zone={gcp_zone}",

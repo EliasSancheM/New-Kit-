@@ -2,13 +2,15 @@
 """
 IAFactory QA Kit - IAP Tunnel Manager
 -------------------------------------
-Manages the Google Cloud Identity-Aware Proxy (IAP) tunnel to iafactory-dev.
-Allows starting, stopping, and checking the status of port-forwarded services.
+Manages Google Cloud Identity-Aware Proxy (IAP) tunnels to the remote VMs
+defined in environments.json (dev, qa, team-devs, ...). Each environment
+forwards its ports with its own local offset, so tunnels can run in parallel.
 
 Usage:
-    python iap_tunnel.py start [--background]
-    python iap_tunnel.py status [--json]
-    python iap_tunnel.py stop
+    python iap_tunnel.py start  [--env dev] [--foreground]
+    python iap_tunnel.py status [--env dev | --all] [--json]
+    python iap_tunnel.py stop   [--env dev]
+    python iap_tunnel.py envs   [--json]
 """
 
 import os
@@ -24,22 +26,11 @@ import json
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-# Setup environment and paths
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-SHARED_DIR = os.path.join(os.path.dirname(SCRIPT_DIR), "shared")
-sys.path.append(SHARED_DIR)
-try:
-    import utils
-    WORKSPACE_ROOT = utils.WORKSPACE_ROOT
-except ImportError:
-    WORKSPACE_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "..", "..", ".."))
+sys.path.append(os.path.join(SCRIPT_DIR, "..", "..", "shared"))
+import utils
 
-# Default GCP settings (can be overridden via environment variables)
-GCP_INSTANCE = os.environ.get("GCP_INSTANCE", "iafactory-dev")
-GCP_ZONE = os.environ.get("GCP_ZONE", "us-central1-a")
-GCP_PROJECT = os.environ.get("GCP_PROJECT", "apiux-iafactory-nonprod")
-
-# Ports to forward: (Port, Description)
+# Remote ports to forward: (Port, Description). Local port = port + env port_offset.
 FORWARD_PORTS = [
     (3000, "Grafana / Core"),
     (3001, "Frontend Next.js"),
@@ -70,7 +61,11 @@ FORWARD_PORTS = [
     (9090, "Prometheus Telemetry")
 ]
 
-PID_FILE = os.path.join(os.path.expanduser("~"), ".iafactory_qa_cache", "iap_tunnel.pid")
+PID_DIR = os.path.join(utils.get_token_cache_dir(), "tunnels")
+
+
+def pid_file(env_name: str) -> str:
+    return os.path.join(PID_DIR, f"iap_tunnel_{env_name}.pid")
 
 
 def is_port_open(port: int, host: str = "127.0.0.1", timeout: float = 0.2) -> bool:
@@ -87,231 +82,241 @@ def is_port_open(port: int, host: str = "127.0.0.1", timeout: float = 0.2) -> bo
 def get_gcloud_bin() -> str:
     path = shutil.which("gcloud")
     if not path and sys.platform == "win32":
-        candidate = r"C:\Users\alonso.salas\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin\gcloud.CMD"
+        candidate = os.path.join(os.environ.get("LOCALAPPDATA", ""), "Google", "Cloud SDK",
+                                 "google-cloud-sdk", "bin", "gcloud.cmd")
         if os.path.exists(candidate):
             return candidate
     return path or "gcloud"
 
 
-def build_port_forward_args():
+def build_port_forward_args(offset: int):
     args = []
     for port, _ in FORWARD_PORTS:
-        args.extend(["-L", f"127.0.0.1:{port}:localhost:{port}"])
+        args.extend(["-L", f"127.0.0.1:{port + offset}:localhost:{port}"])
     return args
 
 
-def get_tunnel_status():
+def _pid_alive(pid: int) -> bool:
+    try:
+        if sys.platform == "win32":
+            out = subprocess.run(["tasklist", "/FI", f"PID eq {pid}"], capture_output=True, text=True).stdout
+            return str(pid) in out
+        os.kill(pid, 0)
+        return True
+    except Exception:
+        return False
+
+
+def get_tunnel_status(env: dict):
+    offset = env["port_offset"]
     open_count = 0
-    total_count = len(FORWARD_PORTS)
     ports_detail = {}
-    
-    # Check core key ports
     for port, desc in FORWARD_PORTS:
-        reachable = is_port_open(port)
+        reachable = is_port_open(port + offset)
         if reachable:
             open_count += 1
-        ports_detail[port] = {
-            "description": desc,
-            "reachable": reachable
-        }
+        ports_detail[port] = {"local_port": port + offset, "description": desc, "reachable": reachable}
 
-    # Check saved PID if exists
-    saved_pid = None
-    pid_running = False
-    if os.path.exists(PID_FILE):
+    saved_pid, pid_running = None, False
+    pf = pid_file(env["name"])
+    if os.path.exists(pf):
         try:
-            with open(PID_FILE, "r") as f:
+            with open(pf, "r") as f:
                 saved_pid = int(f.read().strip())
-            # Check if PID is alive
-            if sys.platform == "win32":
-                proc_chk = subprocess.run(["tasklist", "/FI", f"PID eq {saved_pid}"], capture_output=True, text=True)
-                pid_running = str(saved_pid) in proc_chk.stdout
-            else:
-                os.kill(saved_pid, 0)
-                pid_running = True
+            pid_running = _pid_alive(saved_pid)
         except Exception:
             pid_running = False
 
-    is_active = open_count > 0 or pid_running
-
     return {
-        "active": is_active,
+        "env": env["name"],
+        "active": open_count > 0 or pid_running,
         "pid": saved_pid if pid_running else None,
         "open_ports": open_count,
-        "total_ports": total_count,
-        "instance": GCP_INSTANCE,
-        "project": GCP_PROJECT,
-        "zone": GCP_ZONE,
+        "total_ports": len(FORWARD_PORTS),
+        "port_offset": offset,
+        "instance": env["instance"],
+        "project": env["project"],
+        "zone": env["zone"],
         "ports": ports_detail
     }
 
 
-def start_tunnel(background: bool = True):
-    status = get_tunnel_status()
+def start_tunnel(env: dict, background: bool = True) -> bool:
+    status = get_tunnel_status(env)
     if status["open_ports"] >= 3:
-        print(f"✅ El túnel IAP ya parece estar activo ({status['open_ports']}/{status['total_ports']} puertos respondiendo).")
+        print(f"✅ El túnel IAP de '{env['name']}' ya parece activo ({status['open_ports']}/{status['total_ports']} puertos respondiendo).")
         return True
 
-    gcloud = get_gcloud_bin()
+    offset = env["port_offset"]
     base_cmd = [
-        gcloud, "compute", "ssh", GCP_INSTANCE,
-        f"--zone={GCP_ZONE}",
+        get_gcloud_bin(), "compute", "ssh", env["instance"],
+        f"--zone={env['zone']}",
         "--tunnel-through-iap",
-        f"--project={GCP_PROJECT}",
-        "--",
-        "-N"
-    ] + build_port_forward_args()
+        f"--project={env['project']}",
+    ] + utils.iap_extra_args() + ["--", "-N"] + build_port_forward_args(offset)
 
-    os.makedirs(os.path.dirname(PID_FILE), exist_ok=True)
+    os.makedirs(PID_DIR, exist_ok=True)
+    print(f"🚀 Conectando túnel IAP '{env['name']}' a {env['instance']} ({env['zone']}) en {env['project']}...")
+    print(f"   Reenviando {len(FORWARD_PORTS)} puertos a 127.0.0.1 con offset +{offset} (ej. Postgres en {5432 + offset}).")
 
-    print(f"🚀 Conectando Túnel IAP a {GCP_INSTANCE} ({GCP_ZONE}) en {GCP_PROJECT}...")
-    print(f"   Reenviando {len(FORWARD_PORTS)} puertos a localhost (127.0.0.1)...")
-
-    if background:
-        if sys.platform == "win32":
-            # Usar start para lanzar ventana o proceso desacoplado
-            creation_flags = subprocess.CREATE_NEW_PROCESS_GROUP
-            p = subprocess.Popen(
-                base_cmd,
-                creationflags=creation_flags,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
-            )
-        else:
-            p = subprocess.Popen(
-                base_cmd,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                start_new_session=True
-            )
-
-        with open(PID_FILE, "w") as f:
-            f.write(str(p.pid))
-
-        print(f"⏳ Túnel lanzado en segundo plano (PID: {p.pid}). Verificando puertos...")
-        for _ in range(10):
-            time.sleep(1)
-            if is_port_open(5432) or is_port_open(8000) or is_port_open(8100):
-                print("✅ Túnel IAP establecido exitosamente.")
-                return True
-
-        # Check again
-        st = get_tunnel_status()
-        if st["open_ports"] > 0:
-            print(f"✅ Túnel IAP conectado ({st['open_ports']} puertos respondiendo).")
-            return True
-        else:
-            print("⚠️ El proceso se inició pero los puertos aún no responden. Dale unos segundos para autenticar.")
-            return True
-    else:
-        # Foreground
+    if not background:
         try:
             subprocess.run(base_cmd)
         except KeyboardInterrupt:
             print("\n🛑 Túnel detenido por el usuario.")
+        return True
+
+    if sys.platform == "win32":
+        p = subprocess.Popen(base_cmd, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    else:
+        p = subprocess.Popen(base_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                             start_new_session=True)
+    with open(pid_file(env["name"]), "w") as f:
+        f.write(str(p.pid))
+
+    print(f"⏳ Túnel lanzado en segundo plano (PID: {p.pid}). Verificando puertos...")
+    key_ports = [5432 + offset, 8000 + offset, 8100 + offset]
+    for _ in range(15):
+        time.sleep(1)
+        if any(is_port_open(kp) for kp in key_ports):
+            print("✅ Túnel IAP establecido.")
+            return True
+        if p.poll() is not None:
+            print(f"❌ El proceso gcloud terminó (código {p.returncode}) sin abrir el túnel. "
+                  f"Prueba con --foreground para ver el error.")
+            return False
+
+    print("⚠️ El proceso sigue vivo pero los puertos aún no responden. Consulta 'status' en unos segundos.")
+    return False
 
 
-def stop_tunnel():
-    st = get_tunnel_status()
+def stop_tunnel(env: dict):
     stopped = False
-
-    if os.path.exists(PID_FILE):
+    pf = pid_file(env["name"])
+    if os.path.exists(pf):
+        pid = None
         try:
-            with open(PID_FILE, "r") as f:
+            with open(pf, "r") as f:
                 pid = int(f.read().strip())
             if sys.platform == "win32":
                 subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True)
             else:
                 os.kill(pid, 9)
             stopped = True
-            print(f"🛑 Proceso del túnel IAP (PID {pid}) terminado.")
+            print(f"🛑 Proceso del túnel '{env['name']}' (PID {pid}) terminado.")
         except Exception as e:
             print(f"⚠️ Error terminando proceso {pid}: {e}")
         finally:
             try:
-                os.remove(PID_FILE)
+                os.remove(pf)
             except Exception:
                 pass
 
     if sys.platform == "win32":
-        # Buscar procesos putty o gcloud que estén escuchando en 5432 o 6333
+        # Tunnels started outside this script: kill whatever listens on this env's key ports
+        offset = env["port_offset"]
+        targets = (f"127.0.0.1:{5432 + offset}", f"127.0.0.1:{6333 + offset}")
         out = subprocess.run(["netstat", "-ano"], capture_output=True, text=True).stdout
         pids_to_kill = set()
         for line in out.splitlines():
-            if ("127.0.0.1:5432" in line or "127.0.0.1:6333" in line) and "LISTENING" in line:
-                parts = line.strip().split()
-                if len(parts) >= 5:
-                    pids_to_kill.add(parts[-1])
+            parts = line.strip().split()
+            if "LISTENING" in line and len(parts) >= 5 and parts[1] in targets:
+                pids_to_kill.add(parts[-1])
         for p in pids_to_kill:
-            try:
-                subprocess.run(["taskkill", "/PID", p, "/T", "/F"], capture_output=True)
-                print(f"🛑 Proceso port-forward (PID {p}) cerrado.")
-                stopped = True
-            except Exception:
-                pass
+            subprocess.run(["taskkill", "/PID", p, "/T", "/F"], capture_output=True)
+            print(f"🛑 Proceso port-forward (PID {p}) cerrado.")
+            stopped = True
 
-    if stopped:
-        print("✅ Túnel IAP cerrado exitosamente.")
-    else:
-        print("ℹ️ No se detectó ningún túnel IAP activo para detener.")
+    print("✅ Túnel IAP cerrado." if stopped else f"ℹ️ No se detectó ningún túnel activo para '{env['name']}'.")
+
+
+def print_status(status: dict):
+    print("\n" + "=" * 55)
+    print(f"  🌐 TÚNEL IAP '{status['env']}' (GCP -> LOCALHOST)")
+    print("=" * 55)
+    print(f"Instancia Destino : {status['instance']} ({status['zone']})")
+    print(f"Proyecto GCP      : {status['project']}")
+    print(f"Offset de puertos : +{status['port_offset']}")
+    print(f"Estado Túnel      : {'🟢 ACTIVO' if status['active'] else '🔴 INACTIVO'}")
+    if status["pid"]:
+        print(f"PID Proceso       : {status['pid']}")
+    print(f"Puertos Conectados: {status['open_ports']} de {status['total_ports']}")
+    print("-" * 55)
+    for p in [5432, 6333, 6379, 8000, 8100, 8202, 8203, 3000, 9090]:
+        d = status["ports"].get(p, {})
+        print(f"  {'✅' if d.get('reachable') else '❌'} Puerto {d.get('local_port', p):<5} : {d.get('description', '')}")
+    print("=" * 55)
+    if not status["active"]:
+        print(f"💡 Para iniciarlo: python <KIT>/skills/qa-preflight/scripts/iap_tunnel.py start --env {status['env']}\n")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Gestor de Túnel IAP para GCP IAFactory.")
-    parser.add_argument("--instance", type=str, default=None, help="Instancia GCP destino (iafactory-qa, iafactory-dev)")
-    subparsers = parser.add_subparsers(dest="action", help="Acción a ejecutar")
+    parser = argparse.ArgumentParser(description="Gestor de túneles IAP hacia las VMs de IAFactory.")
+    env_help = "Entorno de environments.json (por defecto QA_KIT_ENV o 'dev')"
+    sub = parser.add_subparsers(dest="action")
 
-    # start
-    start_p = subparsers.add_parser("start", help="Iniciar túnel IAP")
+    start_p = sub.add_parser("start", help="Iniciar túnel IAP")
+    start_p.add_argument("--env", help=env_help)
     start_p.add_argument("--foreground", action="store_true", help="Ejecutar en primer plano")
-    start_p.add_argument("--instance", type=str, default=None, help="Instancia GCP destino")
 
-    # stop
-    stop_p = subparsers.add_parser("stop", help="Detener túnel IAP activo")
+    stop_p = sub.add_parser("stop", help="Detener túnel IAP")
+    stop_p.add_argument("--env", help=env_help)
 
-    # status
-    status_p = subparsers.add_parser("status", help="Consultar estado del túnel")
+    status_p = sub.add_parser("status", help="Consultar estado del túnel")
+    status_p.add_argument("--env", help=env_help)
+    status_p.add_argument("--all", action="store_true", help="Estado de todos los entornos configurados")
     status_p.add_argument("--json", action="store_true", help="Salida en JSON")
-    status_p.add_argument("--instance", type=str, default=None, help="Instancia GCP destino")
+
+    envs_p = sub.add_parser("envs", help="Listar entornos configurados")
+    envs_p.add_argument("--json", action="store_true", help="Salida en JSON")
 
     args = parser.parse_args()
+    action = args.action or "status"
 
-    global GCP_INSTANCE
-    target_inst = getattr(args, "instance", None) or args.instance
-    if target_inst:
-        GCP_INSTANCE = target_inst
-
-    if args.action == "start":
-        start_tunnel(background=not args.foreground)
-    elif args.action == "stop":
-        stop_tunnel()
-    elif args.action == "status" or args.action is None:
-        status = get_tunnel_status()
+    if action == "envs":
+        envs = utils.get_environments()
         if getattr(args, "json", False):
-            print(json.dumps(status, indent=2))
+            print(json.dumps(envs, indent=2, ensure_ascii=False))
         else:
-            print("\n" + "=" * 55)
-            print("  🌐 ESTADO DEL TÚNEL IAP (GCP -> LOCALHOST)")
-            print("=" * 55)
-            print(f"Instancia Destino : {status['instance']} ({status['zone']})")
-            print(f"Proyecto GCP      : {status['project']}")
-            state_icon = "🟢 ACTIVO" if status["active"] else "🔴 INACTIVO"
-            print(f"Estado Túnel      : {state_icon}")
-            if status["pid"]:
-                print(f"PID Proceso       : {status['pid']}")
-            print(f"Puertos Conectados: {status['open_ports']} de {status['total_ports']}")
-            print("-" * 55)
-            # Resumen de puertos clave
-            core_ports = [5432, 6333, 6379, 8000, 8100, 8202, 8203, 3000, 9090]
-            for p in core_ports:
-                p_data = status["ports"].get(p, {})
-                icon = "✅" if p_data.get("reachable") else "❌"
-                desc = p_data.get("description", "")
-                print(f"  {icon} Puerto {p:<5} : {desc}")
-            print("=" * 55)
-            if not status["active"]:
-                print("💡 Para iniciar el túnel ejecuta:")
-                print("   python .agents/plugins/iafactory-qa-kit/skills/qa-preflight/scripts/iap_tunnel.py start\n")
+            for name, cfg in envs.items():
+                state = cfg.get("instance") or "⚠️ sin instancia configurada"
+                print(f"  {name:<10} {state:<30} offset +{cfg.get('port_offset', 0)}")
+        return
+
+    if action == "status" and getattr(args, "all", False):
+        results = []
+        for name in utils.get_environments():
+            try:
+                results.append(get_tunnel_status(utils.resolve_environment(name)))
+            except ValueError as e:
+                results.append({"env": name, "error": str(e)})
+        if args.json:
+            print(json.dumps(results, indent=2, ensure_ascii=False))
+        else:
+            for r in results:
+                if "error" in r:
+                    print(f"  ⚠️ {r['env']}: {r['error']}")
+                else:
+                    print(f"  {'🟢' if r['active'] else '🔴'} {r['env']:<10} {r['instance']:<25} {r['open_ports']}/{r['total_ports']} puertos (offset +{r['port_offset']})")
+        return
+
+    try:
+        env = utils.resolve_environment(getattr(args, "env", None))
+    except ValueError as e:
+        print(f"❌ {e}", file=sys.stderr)
+        sys.exit(2)
+
+    if action == "start":
+        sys.exit(0 if start_tunnel(env, background=not args.foreground) else 1)
+    elif action == "stop":
+        stop_tunnel(env)
+    else:
+        status = get_tunnel_status(env)
+        if getattr(args, "json", False):
+            print(json.dumps(status, indent=2, ensure_ascii=False))
+        else:
+            print_status(status)
 
 
 if __name__ == "__main__":

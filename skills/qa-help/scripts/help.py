@@ -94,52 +94,56 @@ CATALOG = {
         "scripts": {
             "check_env.py": {
                 "path": "skills/qa-preflight/scripts/check_env.py",
-                "purpose": "Verifica en <500ms si los puertos de PostgreSQL (5432), Qdrant (6333), Redis (6379) y Prometheus (9090) están accesibles.",
+                "purpose": "Verifica en <500ms los puertos del túnel del entorno (Postgres, Qdrant, Redis, Prometheus...) y las credenciales de gcloud/Notion.",
                 "flags": [
+                    {"flag": "--env", "type": "string", "default": "QA_KIT_ENV o dev", "description": "Entorno de environments.json (dev, qa, team-devs...). Aplica su offset de puertos."},
                     {"flag": "--json", "type": "boolean", "description": "Entrega diagnósticos en JSON estructurado."}
                 ],
                 "examples": [
                     "python skills/qa-preflight/scripts/check_env.py",
-                    "python skills/qa-preflight/scripts/check_env.py --json"
+                    "python skills/qa-preflight/scripts/check_env.py --env qa --json"
                 ]
             },
             "remote_batch_inspect.py": {
                 "path": "skills/qa-preflight/scripts/remote_batch_inspect.py",
-                "purpose": "Ejecuta una inspección consolidada vía SSH en la VM iafactory-dev (commits de 4 repos + contenedores Docker).",
+                "purpose": "Inspección consolidada vía SSH en la VM del entorno (checkout de los repos + contenedores Docker). Solo lectura.",
                 "flags": [
-                    {"flag": "--repo", "type": "string", "choices": ["core", "agents", "frontend", "platform"], "description": "Filtra e inspecciona únicamente el checkout del repositorio indicado en la VM."},
+                    {"flag": "--env", "type": "string", "default": "QA_KIT_ENV o dev", "description": "Entorno de environments.json."},
+                    {"flag": "--repo", "type": "string", "description": "Filtra un repositorio (core, agents, frontend, platform u otro de QA_KIT_REPOS)."},
                     {"flag": "--json", "type": "boolean", "description": "Salida JSON estructurada."},
-                    {"flag": "--instance", "type": "string", "default": "iafactory-dev", "description": "Nombre de la instancia de Compute Engine."},
-                    {"flag": "--zone", "type": "string", "default": "us-central1-a", "description": "Zona de GCP."},
-                    {"flag": "--project", "type": "string", "default": "apiux-iafactory-nonprod", "description": "Proyecto GCP."}
+                    {"flag": "--instance / --zone / --project", "type": "string", "description": "Sobrescriben los datos del entorno."}
                 ],
                 "examples": [
-                    "python skills/qa-preflight/scripts/remote_batch_inspect.py",
-                    "python skills/qa-preflight/scripts/remote_batch_inspect.py --repo frontend",
-                    "python skills/qa-preflight/scripts/remote_batch_inspect.py --json"
+                    "python skills/qa-preflight/scripts/remote_batch_inspect.py --env dev",
+                    "python skills/qa-preflight/scripts/remote_batch_inspect.py --env qa --repo frontend --json"
                 ]
             },
             "iap_tunnel.py": {
                 "path": "skills/qa-preflight/scripts/iap_tunnel.py",
-                "purpose": "Inicia, detiene o inspecciona el túnel IAP local hacia GCP (iafactory-dev) para reenviar los 27 puertos de agentes y servicios.",
+                "purpose": "Inicia, detiene o inspecciona túneles IAP hacia las VMs. Cada entorno usa su offset de puertos, así que varios túneles pueden convivir.",
                 "flags": [
-                    {"flag": "start", "type": "subcommand", "description": "Inicia el túnel IAP en segundo plano (--foreground para primer plano)."},
-                    {"flag": "stop", "type": "subcommand", "description": "Detiene limpiamente el túnel IAP activo y libera puertos."},
-                    {"flag": "status", "type": "subcommand", "description": "Comprueba el estado del túnel y puertos abiertos (--json para salida estructurada)."}
+                    {"flag": "envs", "type": "subcommand", "description": "Lista los entornos configurados."},
+                    {"flag": "start --env <env>", "type": "subcommand", "description": "Inicia el túnel del entorno en segundo plano (--foreground para primer plano)."},
+                    {"flag": "stop --env <env>", "type": "subcommand", "description": "Detiene el túnel del entorno."},
+                    {"flag": "status [--env <env> | --all] [--json]", "type": "subcommand", "description": "Estado de uno o de todos los túneles."}
                 ],
                 "examples": [
-                    "python skills/qa-preflight/scripts/iap_tunnel.py start",
-                    "python skills/qa-preflight/scripts/iap_tunnel.py status",
-                    "python skills/qa-preflight/scripts/iap_tunnel.py status --json",
-                    "python skills/qa-preflight/scripts/iap_tunnel.py stop"
+                    "python skills/qa-preflight/scripts/iap_tunnel.py envs",
+                    "python skills/qa-preflight/scripts/iap_tunnel.py status --all",
+                    "python skills/qa-preflight/scripts/iap_tunnel.py start --env qa",
+                    "python skills/qa-preflight/scripts/iap_tunnel.py stop --env qa"
                 ]
             },
             "refresh_auth.py": {
                 "path": "skills/qa-preflight/scripts/refresh_auth.py",
-                "purpose": "Genera storageState.json limpio para pruebas automatizadas de navegador.",
-                "flags": [],
+                "purpose": "Hace login contra la API del entorno y genera auth/storageState_<env>.json para pruebas de navegador. Falla (código 1) si no hay login válido.",
+                "flags": [
+                    {"flag": "--env", "type": "string", "default": "QA_KIT_ENV o dev", "description": "Entorno de environments.json."},
+                    {"flag": "--api-url / --frontend-origin", "type": "string", "description": "Sobrescriben las URLs del entorno."},
+                    {"flag": "--user / --output / --json", "type": "string", "description": "Usuario de pruebas, ruta destino e impresión en stdout."}
+                ],
                 "examples": [
-                    "python skills/qa-preflight/scripts/refresh_auth.py"
+                    "python skills/qa-preflight/scripts/refresh_auth.py --env dev"
                 ]
             }
         }
@@ -152,6 +156,7 @@ CATALOG = {
                 "purpose": "Audita próximo ID disponible e inserta fila en Google Sheets.",
                 "flags": [
                     {"flag": "--audit", "type": "boolean", "description": "Solo audita e imprime el próximo ID (AF-XXX) y fila destino sin escribir nada."},
+                    {"flag": "--dry-run", "type": "boolean", "description": "Muestra qué se escribiría en Notion/Sheets sin escribir nada. Usarlo siempre antes de publicar."},
                     {"flag": "<nombre> <descripción> <gravedad> [notion_url]", "type": "positional", "description": "Parámetros posicionales para registrar el defecto."}
                 ],
                 "examples": [
@@ -163,6 +168,7 @@ CATALOG = {
                 "path": "skills/report-bug/scripts/notion_mcp_publisher.py",
                 "purpose": "Publica reportes markdown en Notion con arquitectura anidada de 2 niveles.",
                 "flags": [
+                    {"flag": "--dry-run", "type": "boolean", "description": "Muestra qué se escribiría en Notion/Sheets sin escribir nada. Usarlo siempre antes de publicar."},
                     {"flag": "<file_l1> <file_l2> <defect_id> <short_name>", "type": "positional", "description": "Archivos markdown de nivel 1 y 2 para publicar."}
                 ],
                 "examples": [
@@ -178,6 +184,7 @@ CATALOG = {
                 "path": "skills/qa-finish/scripts/qa_finish_publisher.py",
                 "purpose": "Genera reporte local de éxito, subpágina en Notion y actualiza Google Sheets a 'Finalizada'.",
                 "flags": [
+                    {"flag": "--dry-run", "type": "boolean", "description": "Muestra qué se escribiría en Notion/Sheets sin escribir nada. Usarlo siempre antes de publicar."},
                     {"flag": "<defect_id>", "type": "string", "description": "Identificador del issue (AF-XXX)."},
                     {"flag": "<resumen_validacion>", "type": "string", "description": "Resumen ejecutivo de la verificación exitosa."},
                     {"flag": "<detalle_pruebas_evidencia>", "type": "string", "description": "Pasos ejecutados, logs o evidencia de prueba."},
@@ -197,6 +204,7 @@ CATALOG = {
                 "path": "skills/qa-rejection/scripts/qa_rejection_publisher.py",
                 "purpose": "Genera reporte de rechazo con AI Warning Banner, subpágina en Notion y marca 'Rechazada por QA' en Google Sheets.",
                 "flags": [
+                    {"flag": "--dry-run", "type": "boolean", "description": "Muestra qué se escribiría en Notion/Sheets sin escribir nada. Usarlo siempre antes de publicar."},
                     {"flag": "<defect_id>", "type": "string", "description": "Identificador del issue (AF-XXX)."},
                     {"flag": "<motivo_rechazo>", "type": "string", "description": "Razón principal por la cual no se acepta el fix."},
                     {"flag": "<detalle_falla_empirica>", "type": "string", "description": "Evidencia de la replicación o error observado."},
