@@ -65,9 +65,20 @@ def get_status_data():
 
     return data
 
+RULES_PATH = os.path.join(PLUGIN_ROOT, "rules", "AGENTS.md")
+
+def read_rules() -> str:
+    try:
+        with open(RULES_PATH, "r", encoding="utf-8") as f:
+            return f.read().strip()
+    except OSError:
+        return ""
+
 def main():
     if "--json" in sys.argv:
-        print(json.dumps(get_status_data(), indent=2, ensure_ascii=False))
+        data = get_status_data()
+        data["rules_path"] = RULES_PATH
+        print(json.dumps(data, indent=2, ensure_ascii=False))
         return
 
     data = get_status_data()
@@ -78,7 +89,11 @@ def main():
         import update_plugin
         data["plugin_info"] = update_plugin.get_local_version_info()
     except Exception:
-        data["plugin_info"] = {"version": "1.1.1", "commit": "local"}
+        try:
+            with open(os.path.join(PLUGIN_ROOT, "plugin.json"), "r", encoding="utf-8") as f:
+                data["plugin_info"] = {"version": json.load(f).get("version", "?"), "commit": "n/d"}
+        except Exception:
+            data["plugin_info"] = {"version": "?", "commit": "n/d"}
 
     print("=" * 65)
     print("  👋 BIENVENIDO AL PLUGIN IAFACTORY QA KIT (`iafactory-qa-kit`)")
@@ -103,21 +118,34 @@ def main():
     print("\n" + "=" * 65)
     print("  🚀 COMANDOS ESENCIALES (CHEATSHEET DE QA)")
     print("=" * 65)
-    print("1. Revisar defectos pendientes en Google Sheets:")
-    print("   python skills/qa-backlog/scripts/fetch_issues.py --status \"Pendiente,En Revisión\"\n")
+    kit = PLUGIN_ROOT
+    print(f"(Rutas absolutas; el kit está en: {kit})\n")
+    print("1. Revisar defectos pendientes en Google Sheets (usa --limit alto para no truncar):")
+    print(f"   python \"{kit}/skills/qa-backlog/scripts/fetch_issues.py\" --status \"Pendiente,En Revisión\" --limit 200\n")
     print("2. Auditar commits o cambios de código de un issue:")
-    print("   python skills/qa-code-audit/scripts/audit_changes.py --issue \"AF-XXX\"\n")
-    print("3. Pre-flight check (Túneles IAP, DB y puertos antes de probar):")
-    print("   python skills/qa-preflight/scripts/check_env.py\n")
-    print("4. Reportar un nuevo defecto formalmente:")
-    print("   python skills/report-bug/scripts/gsheets_updater.py \"<Título>\" \"<Descripción>\" \"<Gravedad>\"\n")
-    print("5. Cerrar y aprobar formalmente un ticket verificado:")
-    print("   python skills/qa-finish/scripts/qa_finish_publisher.py \"AF-XXX\" \"<Resumen>\" \"<Evidencia>\"\n")
-    print("6. Rechazar formalmente un fix fallido o incompleto:")
-    print("   python skills/qa-rejection/scripts/qa_rejection_publisher.py \"AF-XXX\" \"<Motivo>\" \"<Detalle>\" \"<Diff>\"\n")
+    print(f"   python \"{kit}/skills/qa-code-audit/scripts/audit_changes.py\" --issue \"AF-XXX\"\n")
+    print("3. Pre-flight check (túneles IAP, DB y puertos antes de probar; --env dev|qa|team-devs):")
+    print(f"   python \"{kit}/skills/qa-preflight/scripts/check_env.py\" --env dev\n")
+    print("4. Reportar un nuevo defecto (siempre --dry-run primero):")
+    print(f"   python \"{kit}/skills/report-bug/scripts/gsheets_updater.py\" --dry-run \"<Título>\" \"<Descripción>\" \"<Gravedad>\"\n")
+    print("5. Cerrar y aprobar formalmente un ticket verificado (siempre --dry-run primero):")
+    print(f"   python \"{kit}/skills/qa-finish/scripts/qa_finish_publisher.py\" --dry-run \"AF-XXX\" \"<Resumen>\" \"<Evidencia>\"\n")
+    print("6. Rechazar formalmente un fix fallido o incompleto (siempre --dry-run primero):")
+    print(f"   python \"{kit}/skills/qa-rejection/scripts/qa_rejection_publisher.py\" --dry-run \"AF-XXX\" \"<Motivo>\" \"<Detalle>\" \"<Diff>\"\n")
     print("=" * 65)
-    print("📖 Consulta la metodología completa en: docs/METODOLOGIA_QA_IAFACTORY.md")
-    print("🛡️ Reglas y gobernanza HHH en: rules/AGENTS.md\n")
+    print(f"📖 Metodología completa: {kit}/docs/METODOLOGIA_QA_IAFACTORY.md")
+
+    if "--no-rules" in sys.argv:
+        print(f"🛡️ Reglas de operación (no impresas por --no-rules): {RULES_PATH}\n")
+        return
+
+    rules = read_rules()
+    print("\n" + "=" * 65)
+    print("  🛡️ REGLAS DE OPERACIÓN DEL KIT: VIGENTES PARA TODA ESTA CONVERSACIÓN")
+    print("=" * 65)
+    print("(Contenido de rules/AGENTS.md. Aplícalas en cada tarea de QA de este chat.)\n")
+    print(rules if rules else f"⚠️ No se pudo leer {RULES_PATH}. Léelo manualmente antes de continuar.")
+    print("\n" + "=" * 65 + "\n")
 
 if __name__ == "__main__":
     main()

@@ -63,16 +63,26 @@ def get_token_cache_path() -> str:
 DEFAULT_PRODUCT_REPOS = ["ai-factory-core", "ai-factory-agents", "ai-factory-frontend", "ai-factory-platform"]
 
 def _read_env_key(key: str) -> str:
-    """Reads a single key from the plugin .env before WORKSPACE_ROOT is known."""
+    """Reads a single key: real environment first, then .env files. Files are
+    <plugin>/.env, <cwd>/.env and <WORKSPACE_ROOT>/.env; later ones win, like
+    load_env_variables(). When the kit is installed as a Claude Code plugin the
+    plugin folder is a cache replaced on every update, so the workspace .env is
+    the durable place for these settings."""
     if os.environ.get(key):
         return os.environ[key]
-    fpath = os.path.join(PLUGIN_ROOT, ".env")
-    if os.path.exists(fpath):
+    files = [os.path.join(PLUGIN_ROOT, ".env"), os.path.join(os.getcwd(), ".env")]
+    ws = globals().get("WORKSPACE_ROOT")
+    if ws:
+        files.append(os.path.join(ws, ".env"))
+    value = ""
+    for fpath in dict.fromkeys(files):
+        if not os.path.exists(fpath):
+            continue
         with open(fpath, "r", encoding="utf-8") as f:
             for line in f:
                 if line.strip().startswith(f"{key}="):
-                    return line.split("=", 1)[1].strip().strip('"').strip("'")
-    return ""
+                    value = line.split("=", 1)[1].strip().strip('"').strip("'")
+    return value
 
 def _apply_ca_bundle():
     """QA_KIT_CA_BUNDLE: PEM with the public CAs plus a local interception CA

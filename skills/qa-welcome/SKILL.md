@@ -1,23 +1,39 @@
 ---
 name: qa-welcome
-description: Onboarding del IAFactory QA Kit. Explica cómo funciona el kit y el flujo de QA, y revisa el entorno (Python, git, gcloud, token de Notion, repos presentes). Úsala cuando alguien nuevo empiece a usar el kit, pregunte por dónde empezar o cómo configurarlo, o cuando haya que comprobar que la instalación está lista. Solo lectura. / Onboarding and environment check for the QA kit.
+description: Acondiciona la conversación para trabajar con el IAFactory QA Kit. Revisa el entorno (Python, git, gcloud, token de Notion, repos) y carga las reglas de operación del kit (rules/AGENTS.md), que pasan a regir todo el chat. Úsala AL EMPEZAR cualquier chat de QA con este kit, cuando alguien nuevo pregunte por dónde empezar o cómo configurarlo, o cuando notes que las reglas del kit no se están aplicando. / Conditions the chat: environment check plus the kit's operating rules for the whole conversation.
 ---
 
 # QA Welcome (`qa-welcome`)
 
 > `<KIT>` es la carpeta raíz del kit: dos niveles por encima de este `SKILL.md`.
 
-```bash
-python <KIT>/skills/qa-welcome/scripts/welcome.py
-python <KIT>/skills/qa-welcome/scripts/welcome.py --json
-```
+## Qué hacer
 
-## Qué revisa
+1. Ejecuta el script **sin `--json`**, porque la salida normal incluye las reglas completas:
+
+   ```bash
+   python <KIT>/skills/qa-welcome/scripts/welcome.py
+   ```
+
+2. Lee la salida completa. Termina con el bloque **"REGLAS DE OPERACIÓN DEL KIT"** (el contenido de `rules/AGENTS.md`). **Esas reglas rigen el resto de la conversación**, no solo este turno: aplícalas en cada tarea de QA, aunque el usuario no las vuelva a mencionar.
+
+3. Responde con el estado del entorno y confirma en pocas líneas qué reglas vas a aplicar. Como mínimo:
+   - Honestidad primero: distingue hecho, inferencia y suposición, y no des nada por verificado sin evidencia.
+   - Al revisar una incidencia (AF-XXX) usas la **plantilla de 4 fases** de la sección 3 de las reglas, siempre completa, con su advertencia de seguridad y la trazabilidad de la VM.
+   - Todo lo que escribe en Google Sheets o Notion (`report-bug`, `qa-finish`, `qa-rejection`) va primero con `--dry-run` y con confirmación explícita del usuario.
+   - Nada de commit ni push sin que el usuario lo pida.
+   - Las VMs (dev, qa, team-devs) son compartidas: solo lectura, y nunca levantes ni reinicies servicios por iniciativa propia.
+
+4. Si la salida marca algo sin configurar (gcloud, Notion, repos), dile al usuario qué falta y cómo resolverlo. No lo resuelvas por tu cuenta.
+
+## Qué revisa el script
 
 1. Sistema operativo, versión de Python y git.
 2. Sesión de Google Cloud y token de Notion.
 3. Identidad con la que se firmarán los reportes (`USER_NAME` en el `.env`, o `git config user.name`).
 4. Qué repos de producto encuentra en el workspace.
+
+Opciones: `--no-rules` omite las reglas (solo diagnóstico) y `--json` da solo el estado en JSON, con la ruta de las reglas en `rules_path`.
 
 ## Flujo de QA para explicar a alguien nuevo
 
@@ -25,10 +41,10 @@ python <KIT>/skills/qa-welcome/scripts/welcome.py --json
 2. `qa-backlog`: ver qué defectos esperan verificación.
 3. `qa-code-audit --issue AF-XXX`: revisar qué cambió el desarrollador.
 4. Probar el defecto.
-5. Cerrar con `qa-finish`, rechazar con `qa-rejection`, o registrar uno nuevo con `report-bug`. Los tres escriben en sistemas compartidos: siempre con `--dry-run` primero y confirmación del usuario.
+5. Cerrar con `qa-finish`, rechazar con `qa-rejection`, o registrar uno nuevo con `report-bug`.
 
 ## Si falta configuración
 
-- Copiar `<KIT>/.env.example` a `<KIT>/.env` y completar `NOTION_TOKEN` y `USER_NAME`.
+- Copiar `<KIT>/.env.example` a `.env` y completar `NOTION_TOKEN` y `USER_NAME`. Si instalaste el kit como plugin de Claude Code, pon ese `.env` en la **raíz de tu workspace**: la carpeta del plugin se reemplaza en cada actualización.
 - Si el workspace no tiene los repos de IAFactory con esos nombres, definir `QA_KIT_REPOS` y, si hace falta, `WORKSPACE_ROOT`.
 - Ejecutar `gcloud auth login --enable-gdrive-access`.

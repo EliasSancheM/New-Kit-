@@ -22,6 +22,8 @@ python <KIT>/skills/qa-backlog/scripts/fetch_issues.py --id "AF-185" --json
 python <KIT>/skills/qa-backlog/scripts/fetch_issues.py --status "En Revisión" --limit 10
 ```
 
+**El límite por defecto es 20 y corta sin más aviso que un mensaje en stderr.** Si vas a contar defectos, filtrar por responsable o afirmar que "solo hay N", usa siempre `--limit 500`. El script no filtra por persona: trae todo y filtra tú por la columna `responsable`. Cuidado con los nombres escritos de forma distinta.
+
 ## Campos del JSON
 
 `id`, `nombre`, `estado`, `gravedad` (Critica/Alta/Media/Baja), `responsable`, `descripcion`, `reportada_por`, `fecha_inicio`, `commits`, `id_commits`, `comentario_dev`, `comentario_qa` (suele contener la URL de Notion), `row` (fila en la hoja).

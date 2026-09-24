@@ -1,6 +1,6 @@
 {
   "name": "iafactory-qa-kit",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Kit integral y autónomo de QA, Observabilidad y Ciclo de Vida de Incidencias para IAFactory. Compatible con cualquier sistema operativo (Windows, Linux, macOS) y cualquier asistente de IA (Antigravity, Claude Code, Cursor, Windsurf).",
   "author": "Alonso Salas / IAFactory QA Team",
   "license": "MIT",

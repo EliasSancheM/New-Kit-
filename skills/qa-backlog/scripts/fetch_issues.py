@@ -32,6 +32,10 @@ def main():
         defects = [d for d in defects if d["id"].upper() == args.id.upper()]
     else:
         defects = utils.list_defects_from_sheets(status_filter=status_filters, limit=args.limit)
+        if len(defects) >= args.limit:
+            print(f"AVISO: se alcanzó el límite de {args.limit} resultados; pueden faltar defectos. "
+                  f"Repite con --limit más alto (por ejemplo --limit 500) antes de contar o concluir.",
+                  file=sys.stderr)
 
     if args.json:
         print(json.dumps(defects, indent=2, ensure_ascii=False))
