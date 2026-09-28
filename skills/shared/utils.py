@@ -774,6 +774,8 @@ def _title_matches_defect(title: str, defect_id: str) -> bool:
     title = title or ""
     if not (title == defect_id or title.startswith(defect_id + "_")):
         return False
+    if title.startswith(defect_id + "_ampliacion_"):  # qa-amplify subpages: AF-XXX_ampliacion_<origen>
+        return False
     return not any(title.endswith(sfx) for sfx in _LEVEL2_SUFFIXES)
 
 def resolve_level1_via_parent_chain(page_id: str, max_depth: int = 6) -> tuple[str, str]:

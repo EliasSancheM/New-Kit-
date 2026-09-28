@@ -62,6 +62,9 @@ iafactory-qa-kit/
     ├── qa-rejection/           # Rechazo formal de QA (MD + Warning Banner + 'Rechazada por QA')
     │   ├── SKILL.md
     │   └── scripts/qa_rejection_publisher.py
+    ├── qa-amplify/             # Evidencia adicional sobre un defecto existente (Notion, sin cambiar estado)
+    │   ├── SKILL.md
+    │   └── scripts/qa_amplify_publisher.py
     ├── qa-e2e-corrida/         # Planificación y documentación de corridas E2E (en vivo o retroactivas)
     │   ├── SKILL.md
     │   ├── templates/          # plantilla_proyecto.md ("Antes") y plantilla_corrida.md
@@ -105,7 +108,7 @@ Clona el kit en tu workspace (por ejemplo, en `.agents/plugins/iafactory-qa-kit`
 
 ### Seguridad al publicar
 
-`report-bug`, `qa-finish` y `qa-rejection` escriben en Notion y Google Sheets compartidos. Todos aceptan `--dry-run`, que muestra lo que se escribiría sin tocar nada. Los `SKILL.md` obligan al asistente a hacer dry-run y pedir confirmación antes de publicar. Código de salida `3` = éxito parcial (por ejemplo, Notion publicado pero Sheets no actualizado).
+`report-bug`, `qa-finish` y `qa-rejection` escriben en Notion y Google Sheets compartidos; `qa-amplify` escribe en Notion (y en el Sheet solo con `--link-in-sheet`). Todos aceptan `--dry-run`, que muestra lo que se escribiría sin tocar nada. Los `SKILL.md` obligan al asistente a hacer dry-run y pedir confirmación antes de publicar. Código de salida `3` = éxito parcial (por ejemplo, Notion publicado pero Sheets no actualizado).
 
 ---
 
@@ -157,7 +160,10 @@ python skills/qa-finish/scripts/qa_finish_publisher.py "AF-XXX" "<Resumen>" "<Ev
 # 6. Rechazar defecto fallido:
 python skills/qa-rejection/scripts/qa_rejection_publisher.py "AF-XXX" "<Motivo>" "<Detalle_Falla>" "<Cambios_Encontrados>"
 
-# 7. Corrida E2E: documento "Antes" del proyecto y documento de la corrida:
+# 7. Agregar evidencia a un defecto existente sin cambiar su estado:
+python skills/qa-amplify/scripts/qa_amplify_publisher.py --dry-run "AF-XXX" "<Origen>" "<Evidencia>"
+
+# 8. Corrida E2E: documento "Antes" del proyecto y documento de la corrida:
 python skills/qa-e2e-corrida/scripts/new_run.py proyecto <slug-proyecto>
 python skills/qa-e2e-corrida/scripts/new_run.py corrida <empresa> <slug-proyecto>
 ```

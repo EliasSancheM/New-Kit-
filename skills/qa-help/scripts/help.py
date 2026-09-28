@@ -239,6 +239,27 @@ CATALOG = {
             }
         }
     },
+    "qa-amplify": {
+        "description": "Agrega evidencia a un defecto existente sin cambiar su estado (subpágina AF-XXX_ampliacion_<origen> en Notion).",
+        "scripts": {
+            "qa_amplify_publisher.py": {
+                "path": "skills/qa-amplify/scripts/qa_amplify_publisher.py",
+                "purpose": "Publica la evidencia bajo la página Nivel 1 del ticket, guarda copia en Reportes/ampliaciones/ y no toca el estado del Sheet. No duplica subpáginas con el mismo título.",
+                "flags": [
+                    {"flag": "<defect_id> <origen> <evidencia>", "type": "positional", "description": "Modo un ticket. La evidencia puede venir de --body-file."},
+                    {"flag": "--file / --origin", "type": "string", "description": "Modo lote: archivo con secciones '## AF-XXX — título' separadas por '---'."},
+                    {"flag": "--only", "type": "string", "description": "Con --file, solo estos IDs (separados por coma)."},
+                    {"flag": "--level1", "type": "string", "description": "ID de la página Nivel 1 si no se resuelve sola (modo un ticket)."},
+                    {"flag": "--link-in-sheet", "type": "boolean", "description": "Agrega la URL al final de COMENTARIO QA sin borrar lo existente. Apagado por defecto."},
+                    {"flag": "--dry-run", "type": "boolean", "description": "Muestra destinos y contenido sin escribir nada. Usarlo siempre antes de publicar."}
+                ],
+                "examples": [
+                    "python skills/qa-amplify/scripts/qa_amplify_publisher.py --dry-run \"AF-259\" \"E2E_Apiux_2026-09-25\" \"Causa confirmada en logs de qa-agent: ...\"",
+                    "python skills/qa-amplify/scripts/qa_amplify_publisher.py --dry-run --file Reportes/ampliaciones/lote.md --origin \"E2E_Apiux_2026-09-25\""
+                ]
+            }
+        }
+    },
     "qa-help": {
         "description": "Catálogo completo de skills, scripts, sintaxis y flags.",
         "scripts": {

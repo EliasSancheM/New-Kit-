@@ -47,8 +47,19 @@ Cuando un asistente de IA ejecute tareas o deba procesar datos de las skills par
    Ejecuta: `python <PLUGIN_ROOT>/skills/qa-finish/scripts/qa_finish_publisher.py "AF-XXX" "<Resumen>" "<Detalle_Prueba>" "<Resultado>"`
 9. **Para rechazar formalmente un defecto no resuelto:**
    Ejecuta: `python <PLUGIN_ROOT>/skills/qa-rejection/scripts/qa_rejection_publisher.py "AF-XXX" "<Motivo>" "<Detalle_Falla>" "<Cambios_Encontrados>"`
+10. **Para agregar evidencia a un defecto existente sin cambiar su estado:**
+   Ejecuta: `python <PLUGIN_ROOT>/skills/qa-amplify/scripts/qa_amplify_publisher.py "AF-XXX" "<Origen>" "<Evidencia>"` (o `--file <archivo.md> --origin "<Origen>"` para varios)
 
-> 🔒 **Regla de Escritura (pasos 7-9 y `notion_mcp_publisher.py`):** estos scripts escriben en Google Sheets y Notion, que son compartidos por todo el equipo. Antes de ejecutarlos, el asistente **DEBE** correrlos con `--dry-run`, mostrar al usuario lo que se va a escribir y esperar su confirmación explícita en el turno actual. Códigos de salida: `0` = ok, `1` = fallo, `2` = argumentos inválidos, `3` = éxito parcial (por ejemplo, Notion publicado pero Sheets no actualizado); ante `3` hay que avisar al usuario y no darlo por terminado.
+**Cuál escritura usar:**
+
+| Situación | Skill | Estado en el Sheet |
+|---|---|---|
+| Defecto nuevo | `report-bug` | Fila nueva |
+| Fix re-probado que pasó | `qa-finish` | → Finalizada |
+| Fix re-probado que sigue fallando | `qa-rejection` | → Rechazada por QA |
+| Evidencia nueva sobre un ticket que no se está re-verificando, o hallazgo ya reportado | `qa-amplify` | Sin cambios |
+
+> 🔒 **Regla de Escritura (pasos 7-10 y `notion_mcp_publisher.py`):** estos scripts escriben en Google Sheets y Notion, que son compartidos por todo el equipo. Antes de ejecutarlos, el asistente **DEBE** correrlos con `--dry-run`, mostrar al usuario lo que se va a escribir y esperar su confirmación explícita en el turno actual. Códigos de salida: `0` = ok, `1` = fallo, `2` = argumentos inválidos, `3` = éxito parcial (por ejemplo, Notion publicado pero Sheets no actualizado); ante `3` hay que avisar al usuario y no darlo por terminado.
 
 > 💡 **Regla de Formato:** El flag `--json` está destinado exclusivamente al consumo y lectura autónoma de la IA. Al presentar la respuesta final al usuario humano, la IA debe formatear los resultados en Markdown limpio, claro y legible.
 

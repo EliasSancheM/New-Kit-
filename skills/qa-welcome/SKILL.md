@@ -20,7 +20,7 @@ description: Acondiciona la conversación para trabajar con el IAFactory QA Kit.
 3. Responde con el estado del entorno y confirma en pocas líneas qué reglas vas a aplicar. Como mínimo:
    - Honestidad primero: distingue hecho, inferencia y suposición, y no des nada por verificado sin evidencia.
    - Al revisar una incidencia (AF-XXX) usas la **plantilla de 4 fases** de la sección 3 de las reglas, siempre completa, con su advertencia de seguridad y la trazabilidad de la VM.
-   - Todo lo que escribe en Google Sheets o Notion (`report-bug`, `qa-finish`, `qa-rejection`) va primero con `--dry-run` y con confirmación explícita del usuario.
+   - Todo lo que escribe en Google Sheets o Notion (`report-bug`, `qa-finish`, `qa-rejection`, `qa-amplify`) va primero con `--dry-run` y con confirmación explícita del usuario.
    - Nada de commit ni push sin que el usuario lo pida.
    - Las VMs (dev, qa, team-devs) son compartidas: solo lectura, y nunca levantes ni reinicies servicios por iniciativa propia.
 
@@ -41,7 +41,7 @@ Opciones: `--no-rules` omite las reglas (solo diagnóstico) y `--json` da solo e
 2. `qa-backlog`: ver qué defectos esperan verificación.
 3. `qa-code-audit --issue AF-XXX`: revisar qué cambió el desarrollador.
 4. Probar el defecto.
-5. Cerrar con `qa-finish`, rechazar con `qa-rejection`, o registrar uno nuevo con `report-bug`.
+5. Cerrar con `qa-finish`, rechazar con `qa-rejection`, registrar uno nuevo con `report-bug`, o sumar evidencia a un ticket existente sin cambiar su estado con `qa-amplify`.
 
 Para probar el pipeline completo con un proyecto piloto (o auditar una corrida ya terminada) se usa `qa-e2e-corrida`: documento "Antes" del proyecto, plan opcional de issues a revisar, una sección por agente y cierre con discrepancias. Puede incluir en su plan issues del paso 2 y cerrarlos con el paso 5.
 

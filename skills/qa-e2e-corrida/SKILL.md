@@ -1,6 +1,6 @@
 ---
 name: qa-e2e-corrida
-description: Planifica y documenta corridas E2E de IAFactory (Maya → Product Owner → Arquitecto → UI/UX → QA → Developer, y DevSec/DevOps cuando participan). Úsala antes de una corrida nueva (documento de proyecto "Antes" y, si se pide, plan de revisión de issues pendientes), durante la corrida para llenar un único documento por agente, y para auditar una corrida ya terminada a partir de su ID de proyecto. Escribe solo archivos locales; publicar tickets sigue pasando por report-bug, qa-finish y qa-rejection con confirmación. / Plan and document IAFactory end-to-end runs.
+description: Planifica y documenta corridas E2E de IAFactory (Maya → Product Owner → Arquitecto → UI/UX → QA → Developer, y DevSec/DevOps cuando participan). Úsala antes de una corrida nueva (documento de proyecto "Antes" y, si se pide, plan de revisión de issues pendientes), durante la corrida para llenar un único documento por agente, y para auditar una corrida ya terminada a partir de su ID de proyecto. Escribe solo archivos locales; publicar tickets sigue pasando por report-bug, qa-amplify, qa-finish y qa-rejection con confirmación. / Plan and document IAFactory end-to-end runs.
 ---
 
 # Corridas E2E (`qa-e2e-corrida`)
@@ -115,7 +115,7 @@ Menos detalle que en vivo, misma estructura.
 
 ## Paso 4: Publicación (solo con confirmación)
 
-Nada se publica solo. Para cada hallazgo de §9.2 o issue de §9.4 que el usuario quiera subir, ejecuta primero el script correspondiente (`report-bug`, `qa-finish`, `qa-rejection`) con `--dry-run`, muéstralo y espera su confirmación en ese turno. Una autorización cubre solo ese ticket.
+Nada se publica solo. Para cada hallazgo de §9.2 o issue de §9.4 que el usuario quiera subir, ejecuta primero el script correspondiente con `--dry-run`: `report-bug` para hallazgos nuevos, `qa-amplify` para duplicados y ampliaciones de tickets existentes (se pueden publicar en lote con `--file`), `qa-finish` / `qa-rejection` para issues del plan re-verificados. Muestra el dry-run y espera la confirmación del usuario en ese turno. Una autorización cubre solo lo que mostraste.
 
 ---
 

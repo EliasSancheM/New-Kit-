@@ -9,7 +9,7 @@ Rechaza un defecto cuyo fix no funcionó. Escribe en Notion y Google Sheets, que
 
 > `<KIT>` es la carpeta raíz del kit: dos niveles por encima de este `SKILL.md`. Ejecuta desde la raíz de tu workspace.
 
-> Si tu equipo documenta las re-verificaciones fallidas ampliando el reporte existente en vez de rechazar el ticket, no uses esta skill: sigue el proceso de tu equipo.
+> Si el ticket no se está re-verificando y solo quieres sumarle evidencia sin cambiar su estado, usa `qa-amplify`.
 
 ## Protocolo obligatorio
 

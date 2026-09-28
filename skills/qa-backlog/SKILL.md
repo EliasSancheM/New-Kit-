@@ -30,7 +30,7 @@ python <KIT>/skills/qa-backlog/scripts/fetch_issues.py --status "En Revisión" -
 
 ## Si falla
 
-- **"No se detectó sesión activa de gcloud"** o lista vacía: falta el login de Google con acceso a Drive. Dile al usuario que ejecute `gcloud auth login --enable-gdrive-access`.
+- **"No se detectó sesión activa de gcloud"** o lista vacía: falta el login de Google con acceso a Drive. Dile al usuario que ejecute `gcloud auth login --enable-gdrive-access`. Si ya hizo login y el mensaje persiste, la causa puede ser TLS: `gcloud auth print-access-token` falla con `CERTIFICATE_VERIFY_FAILED` detrás de un proxy o antivirus. En ese caso se resuelve con `QA_KIT_CA_BUNDLE` en el `.env` (ver README), no con otro login.
 - **`CERTIFICATE_VERIFY_FAILED`**: hay un proxy o antivirus que re-firma certificados. Sugiere definir `QA_KIT_TLS_RELAX_STRICT=1` en el `.env` del kit.
 - No inventes defectos ni estados: si la consulta falla, dilo tal cual.
 
