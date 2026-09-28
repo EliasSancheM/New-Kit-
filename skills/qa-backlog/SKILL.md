@@ -22,7 +22,7 @@ python <KIT>/skills/qa-backlog/scripts/fetch_issues.py --id "AF-185" --json
 python <KIT>/skills/qa-backlog/scripts/fetch_issues.py --status "En Revisión" --limit 10
 ```
 
-**El límite por defecto es 20 y corta sin más aviso que un mensaje en stderr.** Si vas a contar defectos, filtrar por responsable o afirmar que "solo hay N", usa siempre `--limit 500`. El script no filtra por persona: trae todo y filtra tú por la columna `responsable`. Cuidado con los nombres escritos de forma distinta.
+**El límite por defecto es 20 y corta sin más aviso que un mensaje en stderr.** Si vas a contar defectos, filtrar por responsable o afirmar que "solo hay N", usa siempre `--limit 500`. Para filtrar por persona usa `--responsable "<nombre>"` (coincidencia parcial, sin distinguir mayúsculas ni tildes; varias personas separadas por coma). El filtro se aplica antes del límite. Si nadie coincide, el script lista en stderr los responsables que sí existen: muéstraselos al usuario en vez de adivinar.
 
 ## Campos del JSON
 

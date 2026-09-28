@@ -132,6 +132,9 @@ def main():
     print(f"   python \"{kit}/skills/qa-finish/scripts/qa_finish_publisher.py\" --dry-run \"AF-XXX\" \"<Resumen>\" \"<Evidencia>\"\n")
     print("6. Rechazar formalmente un fix fallido o incompleto (siempre --dry-run primero):")
     print(f"   python \"{kit}/skills/qa-rejection/scripts/qa_rejection_publisher.py\" --dry-run \"AF-XXX\" \"<Motivo>\" \"<Detalle>\" \"<Diff>\"\n")
+    print("7. Corrida E2E: crear el documento 'Antes' del proyecto y el de la corrida (método en skills/qa-e2e-corrida/SKILL.md):")
+    print(f"   python \"{kit}/skills/qa-e2e-corrida/scripts/new_run.py\" proyecto <slug>")
+    print(f"   python \"{kit}/skills/qa-e2e-corrida/scripts/new_run.py\" corrida <empresa> <slug>\n")
     print("=" * 65)
     print(f"📖 Metodología completa: {kit}/docs/METODOLOGIA_QA_IAFACTORY.md")
 

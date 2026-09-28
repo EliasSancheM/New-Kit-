@@ -43,6 +43,8 @@ Opciones: `--no-rules` omite las reglas (solo diagnóstico) y `--json` da solo e
 4. Probar el defecto.
 5. Cerrar con `qa-finish`, rechazar con `qa-rejection`, o registrar uno nuevo con `report-bug`.
 
+Para probar el pipeline completo con un proyecto piloto (o auditar una corrida ya terminada) se usa `qa-e2e-corrida`: documento "Antes" del proyecto, plan opcional de issues a revisar, una sección por agente y cierre con discrepancias. Puede incluir en su plan issues del paso 2 y cerrarlos con el paso 5.
+
 ## Si falta configuración
 
 - Copiar `<KIT>/.env.example` a `.env` y completar `NOTION_TOKEN` y `USER_NAME`. Si instalaste el kit como plugin de Claude Code, pon ese `.env` en la **raíz de tu workspace**: la carpeta del plugin se reemplaza en cada actualización.

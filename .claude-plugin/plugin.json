@@ -1,6 +1,6 @@
 {
   "name": "iafactory-qa-kit",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Kit de QA de IAFactory: triage de backlog (Google Sheets), auditoría de código por AF-XXX, preflight de infraestructura y publicación de reportes/cierres/rechazos en Notion y Sheets.",
   "author": {
     "name": "Alonso Salas / IAFactory QA Team"

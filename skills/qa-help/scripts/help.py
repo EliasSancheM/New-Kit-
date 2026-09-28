@@ -40,13 +40,35 @@ CATALOG = {
                 "flags": [
                     {"flag": "--status", "type": "string", "default": "Pendiente,En Revisión,Reportada", "description": "Filtro por estados separados por coma (ej. 'En Revisión' o 'all')."},
                     {"flag": "--id", "type": "string", "default": "None", "description": "Filtra por identificador exacto de defecto (ej. AF-228)."},
+                    {"flag": "--responsable", "type": "string", "default": "None", "description": "Filtra por responsable: coincidencia parcial sin mayúsculas ni tildes, varias personas separadas por coma. Se aplica antes de --limit."},
                     {"flag": "--limit", "type": "integer", "default": 20, "description": "Límite máximo de incidencias a devolver."},
                     {"flag": "--json", "type": "boolean", "description": "Entrega salida en formato JSON para procesamiento de agentes."}
                 ],
                 "examples": [
                     "python skills/qa-backlog/scripts/fetch_issues.py --status \"En Revisión\"",
                     "python skills/qa-backlog/scripts/fetch_issues.py --id \"AF-228\" --json",
-                    "python skills/qa-backlog/scripts/fetch_issues.py --status all --limit 50"
+                    "python skills/qa-backlog/scripts/fetch_issues.py --status all --limit 50",
+                    "python skills/qa-backlog/scripts/fetch_issues.py --status all --responsable \"Fabio,Marcelo\" --limit 500"
+                ]
+            }
+        }
+    },
+    "qa-e2e-corrida": {
+        "description": "Planificación y documentación de corridas E2E (documento 'Antes', plan de issues, una sección por agente, contraste con el Sheet, auditoría retroactiva). El método está en su SKILL.md.",
+        "scripts": {
+            "new_run.py": {
+                "path": "skills/qa-e2e-corrida/scripts/new_run.py",
+                "purpose": "Crea los documentos de la corrida desde las plantillas en QA_KIT_E2E_DIR (por defecto Reportes/E2E/). Solo archivos locales; nunca sobrescribe.",
+                "flags": [
+                    {"flag": "proyecto <slug>", "type": "subcommand", "description": "Crea proyectos/<slug>_requisitos.md (documento 'Antes')."},
+                    {"flag": "corrida <empresa> <slug> [fecha]", "type": "subcommand", "description": "Crea <empresa>_<slug>_<fecha>.md (fecha por defecto: hoy)."},
+                    {"flag": "where", "type": "subcommand", "description": "Muestra la carpeta de salida resuelta."},
+                    {"flag": "--json", "type": "boolean", "description": "Salida en JSON (va antes del subcomando)."}
+                ],
+                "examples": [
+                    "python skills/qa-e2e-corrida/scripts/new_run.py where",
+                    "python skills/qa-e2e-corrida/scripts/new_run.py proyecto logistica-inversa",
+                    "python skills/qa-e2e-corrida/scripts/new_run.py corrida shouko logistica-inversa"
                 ]
             }
         }

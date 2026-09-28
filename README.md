@@ -62,6 +62,10 @@ iafactory-qa-kit/
     ├── qa-rejection/           # Rechazo formal de QA (MD + Warning Banner + 'Rechazada por QA')
     │   ├── SKILL.md
     │   └── scripts/qa_rejection_publisher.py
+    ├── qa-e2e-corrida/         # Planificación y documentación de corridas E2E (en vivo o retroactivas)
+    │   ├── SKILL.md
+    │   ├── templates/          # plantilla_proyecto.md ("Antes") y plantilla_corrida.md
+    │   └── scripts/new_run.py
     └── qa-update/              # Verificación de versiones y auto-actualización del plugin
         ├── SKILL.md
         └── scripts/update_plugin.py
@@ -134,8 +138,9 @@ python skills/qa-update/scripts/update_plugin.py --update
 ### 4. Comandos Principales para Asistentes de IA y Desarrolladores
 
 ```bash
-# 1. Consultar Backlog activo (Issues en Revisión o Pendientes):
+# 1. Consultar Backlog activo (Issues en Revisión o Pendientes), opcionalmente por responsable:
 python skills/qa-backlog/scripts/fetch_issues.py --status "Pendiente,En Revisión"
+python skills/qa-backlog/scripts/fetch_issues.py --status all --responsable "Fabio" --limit 500
 
 # 2. Auditar cambios de código de un commit o issue:
 python skills/qa-code-audit/scripts/audit_changes.py --issue "AF-XXX"
@@ -151,7 +156,21 @@ python skills/qa-finish/scripts/qa_finish_publisher.py "AF-XXX" "<Resumen>" "<Ev
 
 # 6. Rechazar defecto fallido:
 python skills/qa-rejection/scripts/qa_rejection_publisher.py "AF-XXX" "<Motivo>" "<Detalle_Falla>" "<Cambios_Encontrados>"
+
+# 7. Corrida E2E: documento "Antes" del proyecto y documento de la corrida:
+python skills/qa-e2e-corrida/scripts/new_run.py proyecto <slug-proyecto>
+python skills/qa-e2e-corrida/scripts/new_run.py corrida <empresa> <slug-proyecto>
 ```
+
+### Corridas E2E (`qa-e2e-corrida`)
+
+Para llevar un proyecto piloto por todo el pipeline de agentes (o auditar una corrida ya terminada) y dejarla documentada en un único archivo. El método completo está en [`skills/qa-e2e-corrida/SKILL.md`](skills/qa-e2e-corrida/SKILL.md); en resumen:
+
+1. **Antes:** documento del proyecto aprobado por el usuario (requerimientos, reglas de negocio, pantallas, criterios de aceptación) y, opcionalmente, un plan de qué issues pendientes revisar aprovechando la corrida.
+2. **Durante:** una sección por agente con lo que funcionó, los hallazgos en limpio y, al final, el contraste contra el Sheet en vivo.
+3. **Cierre:** hallazgos consolidados, discrepancias `Planificado | Agente | Documentación | Código` y resultado del plan de issues.
+
+El código que genera el agente Developer se audita solo como referencia de rendimiento: no se reporta como ticket. Los documentos se crean en `QA_KIT_E2E_DIR` (por defecto `Reportes/E2E/` del workspace).
 
 Para instrucciones detalladas de integración con Claude Code, Cursor o Windsurf, consulta [INSTALL_GUIA_DESDE_CERO.md](docs/INSTALL_GUIA_DESDE_CERO.md). Para la metodología completa de testing, consulta [METODOLOGIA_QA_IAFACTORY.md](docs/METODOLOGIA_QA_IAFACTORY.md).
 
