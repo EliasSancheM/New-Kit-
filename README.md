@@ -112,71 +112,54 @@ Clona el kit en tu workspace (por ejemplo, en `.agents/plugins/iafactory-qa-kit`
 
 ---
 
+
 ## 🚀 Inicio Rápido (Quickstart)
 
-### 1. Ayuda y Catálogo de Flags
-```bash
-# Ver todos los scripts, sintaxis y flags disponibles
-python skills/qa-help/scripts/help.py
+El kit está pensado para usarse **conversando con tu asistente de IA**, no ejecutando scripts a mano. Tú le dices qué necesitas en lenguaje natural; el asistente elige la skill, corre sus scripts y te muestra el resultado. Los scripts y sus flags están documentados en cada `SKILL.md` y en `qa-help`, pero no necesitas memorizarlos.
 
-# Filtrar ayuda por skill puntual
-python skills/qa-help/scripts/help.py --skill qa-code-audit
-```
+### 1. Empieza cada chat de QA con `qa-welcome`
 
-### 2. Setup y Bienvenida Interactiva
-```bash
-# Diagnóstico guiado con bienvenida
-python skills/qa-welcome/scripts/welcome.py
-```
+Pídele: *"Inicia el QA Kit"* o *"prepárate para QA"*. El asistente revisa tu entorno (Python, gcloud, token de Notion, repos) y carga las reglas del kit, que rigen toda la conversación: honestidad primero, dry-run y confirmación antes de escribir en Sheets o Notion, sin commits ni cambios en las VMs por iniciativa propia. Si falta configuración, te dirá qué hacer.
 
-### 3. Verificación de Actualizaciones
-```bash
-# Comprobar si hay una versión más reciente del plugin
-python skills/qa-update/scripts/update_plugin.py --check
+En Claude Code con el plugin instalado, el hook de inicio de sesión ya carga las reglas; igual conviene pedir el diagnóstico la primera vez.
 
-# Actualizar el plugin a la última versión disponible
-python skills/qa-update/scripts/update_plugin.py --update
-```
+### 2. Qué pedir y qué skill se usa
 
-### 4. Comandos Principales para Asistentes de IA y Desarrolladores
+| Quieres… | Pídele algo como… | Skill |
+|---|---|---|
+| Ver qué hay pendiente | *"¿Qué defectos hay en revisión?"*, *"muéstrame los issues de Fabio"*, *"¿en qué estado está AF-259?"* | `qa-backlog` |
+| Saber si el entorno está listo | *"¿Está arriba QA?"*, *"abre el túnel a dev"*, *"el túnel no conecta"* | `qa-preflight` |
+| Revisar qué cambió un desarrollador | *"Revisa el fix de AF-231"*, *"¿qué cambió en el commit 2d6a677?"* | `qa-code-audit` |
+| Registrar un bug nuevo | *"Encontré un bug: …, repórtalo"* | `report-bug` |
+| Cerrar un ticket cuyo fix pasó | *"AF-228 pasó la prueba, ciérralo"* | `qa-finish` |
+| Rechazar un fix que sigue fallando | *"AF-228 sigue fallando, recházalo"* | `qa-rejection` |
+| Sumar evidencia a un ticket sin cambiar su estado | *"Esto ya estaba reportado en AF-259, agrégale la evidencia"*, *"amplía estos tickets con lo que vimos en la corrida"* | `qa-amplify` |
+| Probar el pipeline completo con un proyecto piloto | *"Vamos a hacer una corrida E2E"*, *"audita la corrida del proyecto <ID>"* | `qa-e2e-corrida` |
+| Saber qué puede hacer el kit | *"¿Qué puedo hacer con el kit?"*, *"¿qué flags tiene el backlog?"* | `qa-help` |
+| Actualizar el kit | *"¿Está al día el kit?"*, *"actualízalo"* | `qa-update` |
 
-```bash
-# 1. Consultar Backlog activo (Issues en Revisión o Pendientes), opcionalmente por responsable:
-python skills/qa-backlog/scripts/fetch_issues.py --status "Pendiente,En Revisión"
-python skills/qa-backlog/scripts/fetch_issues.py --status all --responsable "Fabio" --limit 500
+### 3. Flujo típico para verificar un ticket
 
-# 2. Auditar cambios de código de un commit o issue:
-python skills/qa-code-audit/scripts/audit_changes.py --issue "AF-XXX"
+1. **Backlog:** *"¿Qué hay en revisión?"* → eliges un ticket.
+2. **Entorno:** *"¿Está listo QA para probar?"* → el asistente revisa túneles y contenedores (solo lectura).
+3. **Código:** *"Revisa qué cambió en AF-XXX"* → ves los commits y el diff.
+4. **Prueba:** la haces tú, o le pides al asistente que te guíe con la plantilla de 4 fases de `rules/AGENTS.md`.
+5. **Resultado:** *"pasó, ciérralo"* (`qa-finish`), *"sigue fallando, recházalo"* (`qa-rejection`), o *"no se está re-verificando, solo agrégale esta evidencia"* (`qa-amplify`). Si encontraste algo distinto: *"repórtalo como bug nuevo"* (`report-bug`).
 
-# 3. Diagnóstico de túnel IAP antes de probar en vivo:
-python skills/qa-preflight/scripts/check_env.py
+### 4. Corridas E2E
 
-# 4. Reportar un nuevo defecto:
-python skills/report-bug/scripts/gsheets_updater.py "<Título>" "<Descripción>" "<Gravedad>"
+Pídele *"vamos a hacer una corrida E2E de <proyecto>"*. El asistente (`qa-e2e-corrida`):
 
-# 5. Aceptar y cerrar defecto verificado:
-python skills/qa-finish/scripts/qa_finish_publisher.py "AF-XXX" "<Resumen>" "<Evidencia>"
+1. **Antes:** redacta contigo el documento del proyecto (requerimientos, reglas de negocio, pantallas, criterios de aceptación) y, si quieres, un plan de qué issues pendientes revisar aprovechando la corrida (puede filtrarlos por responsable).
+2. **Durante:** documenta cada agente en un único archivo: lo que funcionó, los hallazgos en limpio y, al final de cada sección, el contraste contra el Sheet en vivo.
+3. **Cierre:** hallazgos consolidados, discrepancias `Planificado | Agente | Documentación | Código` y resultado del plan de issues. Luego te propone qué publicar: bugs nuevos con `report-bug`, duplicados y ampliaciones con `qa-amplify`, y tickets re-verificados con `qa-finish` o `qa-rejection`.
 
-# 6. Rechazar defecto fallido:
-python skills/qa-rejection/scripts/qa_rejection_publisher.py "AF-XXX" "<Motivo>" "<Detalle_Falla>" "<Cambios_Encontrados>"
+También sirve para auditar una corrida ya terminada: *"audita la corrida del proyecto <ID> en QA"*. El código que genera el agente Developer se evalúa solo como referencia de rendimiento; no se reporta como ticket. Los documentos quedan en `QA_KIT_E2E_DIR` (por defecto `Reportes/E2E/`).
 
-# 7. Agregar evidencia a un defecto existente sin cambiar su estado:
-python skills/qa-amplify/scripts/qa_amplify_publisher.py --dry-run "AF-XXX" "<Origen>" "<Evidencia>"
+### 5. Lo que el asistente nunca hace sin tu "sí"
 
-# 8. Corrida E2E: documento "Antes" del proyecto y documento de la corrida:
-python skills/qa-e2e-corrida/scripts/new_run.py proyecto <slug-proyecto>
-python skills/qa-e2e-corrida/scripts/new_run.py corrida <empresa> <slug-proyecto>
-```
+- Escribir en Google Sheets o Notion: siempre te muestra antes un dry-run.
+- Hacer commit o push.
+- Levantar, detener o reiniciar servicios en las VMs, o abrir túneles.
 
-### Corridas E2E (`qa-e2e-corrida`)
-
-Para llevar un proyecto piloto por todo el pipeline de agentes (o auditar una corrida ya terminada) y dejarla documentada en un único archivo. El método completo está en [`skills/qa-e2e-corrida/SKILL.md`](skills/qa-e2e-corrida/SKILL.md); en resumen:
-
-1. **Antes:** documento del proyecto aprobado por el usuario (requerimientos, reglas de negocio, pantallas, criterios de aceptación) y, opcionalmente, un plan de qué issues pendientes revisar aprovechando la corrida.
-2. **Durante:** una sección por agente con lo que funcionó, los hallazgos en limpio y, al final, el contraste contra el Sheet en vivo.
-3. **Cierre:** hallazgos consolidados, discrepancias `Planificado | Agente | Documentación | Código` y resultado del plan de issues.
-
-El código que genera el agente Developer se audita solo como referencia de rendimiento: no se reporta como ticket. Los documentos se crean en `QA_KIT_E2E_DIR` (por defecto `Reportes/E2E/` del workspace).
-
-Para instrucciones detalladas de integración con Claude Code, Cursor o Windsurf, consulta [INSTALL_GUIA_DESDE_CERO.md](docs/INSTALL_GUIA_DESDE_CERO.md). Para la metodología completa de testing, consulta [METODOLOGIA_QA_IAFACTORY.md](docs/METODOLOGIA_QA_IAFACTORY.md).
-
+Para instrucciones detalladas de integración con Claude Code, Cursor o Windsurf, consulta [INSTALL_GUIA_DESDE_CERO.md](docs/INSTALL_GUIA_DESDE_CERO.md). Para la metodología completa de testing, consulta [METODOLOGIA_QA_IAFACTORY.md](docs/METODOLOGIA_QA_IAFACTORY.md). Si prefieres la terminal, `python skills/qa-help/scripts/help.py` lista todos los scripts y flags.
