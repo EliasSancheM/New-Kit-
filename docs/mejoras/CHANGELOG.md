@@ -6,6 +6,30 @@ Formato de cada entrada: **Nuevo** (capacidades nuevas), **Cambiado** (comportam
 
 ---
 
+## [1.7.1] — 2026-09-30 · `qa-update` también actualiza el plugin de Claude Code
+
+### Por qué
+
+Claude Code instala el kit desde su propio clon del repo (el "marketplace" `iafactory-qa`) y no lo refresca solo. `qa-update` hacía `git pull` en la copia del workspace, así que el plugin instalado se quedaba en una versión vieja aunque el workspace estuviera al día: con la 1.7.0 publicada, el plugin seguía en 1.5.1. Además, al correr desde el plugin instalado (una carpeta sin git), `--check` fallaba.
+
+### Corregido
+
+- **`qa-update` detecta y actualiza el plugin de Claude Code:** lee la versión instalada, consulta la disponible con `git fetch` en el clon del marketplace (el repo es privado) y, con `--update`, corre `claude plugin marketplace update` y `claude plugin update`. Busca `claude` en el PATH o el que trae la app de escritorio; si no lo encuentra, imprime los comandos.
+- **`--check` funciona desde el plugin instalado** (sin git): informa el estado del plugin en vez de fallar.
+
+### Cómo actualizar (solo esta vez)
+
+El `qa-update` que tienes instalado todavía no sabe actualizar el plugin, así que esta vez corre en tu terminal:
+
+```bash
+claude plugin marketplace update iafactory-qa
+claude plugin update iafactory-qa-kit@iafactory-qa
+```
+
+Si `claude` no está en tu PATH, usa el que trae la app de escritorio: `%APPDATA%\Claude\claude-code\<versión>\claude.exe` en Windows. Después reinicia Claude Code. Desde esta versión, `qa-update` lo hace por su cuenta.
+
+---
+
 ## [1.7.0] — 2026-09-30 · La persona decide qué es un ticket
 
 ### Por qué

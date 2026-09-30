@@ -5,7 +5,13 @@ El plugin **`iafactory-qa-kit`** empaqueta en una única unidad distribuible tod
 
 ---
 
-## 🆕 Últimas mejoras — v1.7.0 (2026-09-30)
+## 🆕 Últimas mejoras — v1.7.1 (2026-09-30)
+
+> ⚠️ **Si usas el kit como plugin de Claude Code, actualízalo esta vez a mano** (tu `qa-update` actual no sabe hacerlo): `claude plugin marketplace update iafactory-qa` y después `claude plugin update iafactory-qa-kit@iafactory-qa`, y reinicia Claude Code. Desde la v1.7.1, `qa-update` actualiza también el plugin.
+
+**v1.7.1:** `qa-update` actualiza el plugin instalado en Claude Code además de la copia del workspace, y `--check` funciona desde el plugin instalado.
+
+**v1.7.0:**
 
 - **La persona decide qué es un ticket.** Tickets nuevos, cierres y rechazos se confirman en **tu** terminal, uno por uno, escribiendo el AF-XXX. Desde el asistente, los scripts salen con código `5`. ⚠️ El último comando de publicación ahora lo ejecutas tú.
 - **Plantillas de reporte** (ejecutivo y técnico) y `report_lint.py`: sin síntoma, pasos, versión y causa con `archivo:línea` (o "Causa no identificada"), el reporte no se publica.
