@@ -200,6 +200,18 @@ CATALOG = {
                     "python skills/report-bug/scripts/gsheets_updater.py --confirm 1a2b3c4d \"Error en login SSO\" \"Fallo al validar token\" \"Alta\" \"https://notion.so/...\""
                 ]
             },
+            "report_lint.py": {
+                "path": "skills/report-bug/scripts/report_lint.py",
+                "purpose": "Revisa que el reporte ejecutivo y el técnico sigan las plantillas de report-bug (síntoma, impacto, pasos numerados, entorno y versión, evidencia, causa con archivo:línea o 'Causa no identificada', corrección). Solo lectura. notion_mcp_publisher.py lo ejecuta y no publica con errores.",
+                "flags": [
+                    {"flag": "<ejecutivo.md> [<tecnico.md>]", "type": "positional", "description": "Reportes a revisar; el que termina en _tecnico.md se revisa como técnico."},
+                    {"flag": "--tecnico <archivo>", "type": "string", "description": "Revisa ese archivo como reporte técnico aunque no termine en _tecnico.md."},
+                    {"flag": "--json", "type": "boolean", "description": "Errores y advertencias en JSON."}
+                ],
+                "examples": [
+                    "python skills/report-bug/scripts/report_lint.py Reportes/AF-351_x.md Reportes/AF-351_x_tecnico.md"
+                ]
+            },
             "notion_mcp_publisher.py": {
                 "path": "skills/report-bug/scripts/notion_mcp_publisher.py",
                 "purpose": "Publica reportes markdown en Notion con arquitectura anidada de 2 niveles.",

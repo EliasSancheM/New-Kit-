@@ -136,4 +136,6 @@ if __name__ == "__main__":
             "confirm_code": utils.confirm_code(*gate),
         }, indent=2, ensure_ascii=False))
         sys.exit(0)
+    utils.require_human_confirmation("Nuevo defecto en Google Sheets", nid, [
+        f"Fila: {trow}", f"Nombre: {d_name}", f"Gravedad: {d_severity}", f"Notion: {n_url or '(sin URL)'}"])
     insert_defect_row(nid, trow, d_name, d_desc, d_severity, n_url)

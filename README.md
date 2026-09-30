@@ -5,12 +5,13 @@ El plugin **`iafactory-qa-kit`** empaqueta en una única unidad distribuible tod
 
 ---
 
-## 🆕 Últimas mejoras — v1.6.0 (2026-09-30)
+## 🆕 Últimas mejoras — v1.7.0 (2026-09-30)
 
-- **Corridas E2E consistentes:** `validate_run.py` revisa el documento de corrida contra la plantilla; se da por terminado solo con 0 errores. La plantilla suma modelo, versión del kit, autores, escala de gravedad y foto de la configuración de agentes.
-- **Publicación con candado:** el `--dry-run` imprime un `confirm_code` y la publicación real exige `--confirm <código>`. Sin él, o si el contenido cambió, sale con código `4` sin escribir.
-- **`qa-finish` y `qa-rejection` exigen `--build`** con la versión probada. ⚠️ Actualiza tus comandos guardados.
-- **`qa-welcome` avisa** si hay copias viejas de las skills o un plugin instalado con otra versión.
+- **La persona decide qué es un ticket.** Tickets nuevos, cierres y rechazos se confirman en **tu** terminal, uno por uno, escribiendo el AF-XXX. Desde el asistente, los scripts salen con código `5`. ⚠️ El último comando de publicación ahora lo ejecutas tú.
+- **Plantillas de reporte** (ejecutivo y técnico) y `report_lint.py`: sin síntoma, pasos, versión y causa con `archivo:línea` (o "Causa no identificada"), el reporte no se publica.
+- **Corridas E2E:** la §9.2 agrupa por causa y registra la decisión humana (validada por `validate_run.py`); nuevas secciones de coherencia entre agentes, documentación publicada, bloqueos y fallas, y fuera de alcance.
+
+Versión anterior (v1.6.0): validador de corridas E2E, `--confirm` en todos los publicadores y `--build` en cierres y rechazos.
 
 Detalle, motivos y cómo actualizar: [docs/mejoras/CHANGELOG.md](docs/mejoras/CHANGELOG.md).
 

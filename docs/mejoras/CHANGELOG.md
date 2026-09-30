@@ -6,6 +6,37 @@ Formato de cada entrada: **Nuevo** (capacidades nuevas), **Cambiado** (comportam
 
 ---
 
+## [1.7.0] — 2026-09-30 · La persona decide qué es un ticket
+
+### Por qué
+
+En una corrida E2E salieron 31 tickets de una vez. Revisando el chat, el asistente había descartado hallazgos "que consideró comportamiento normal", la lista final la armó él y se aprobó con una sola confirmación para todo el lote; los 31 técnicos se escribieron en un solo proceso en segundo plano. Varios eran síntomas de una misma causa y otros eran de plataforma sin relación con la corrida. Además, el análisis de calidad de reportes mostró que al equipo le faltan sobre todo los pasos para reproducir, la versión desplegada y la causa con archivo y línea. Esta versión deja la decisión en manos de la persona y da una estructura base a cada reporte.
+
+### Nuevo
+
+- **Confirmación humana en la terminal** para tickets nuevos (`report-bug`), cierres (`qa-finish`) y rechazos (`qa-rejection`). La persona ejecuta el último comando en una terminal abierta por ella, ve qué se va a publicar y escribe el AF-XXX para confirmar. Desde un asistente el script sale con código `5` sin esperar ni escribir nada. Cada publicación confirmada queda en `Reportes/.publicaciones.log`. Las ampliaciones siguen con el código del dry-run.
+  *Límite conocido:* detiene errores y automatizaciones apuradas; no a alguien que quiera saltárselo a propósito.
+- **Plantillas de reporte** en `report-bug/templates/` (ejecutivo y técnico) y **`report_lint.py`**, que revisa su estructura: síntoma observado contra esperado, impacto, pasos numerados, entorno y versión, evidencia etiquetada, causa raíz con `archivo:línea` (o "Causa no identificada"), corrección y lo no verificado. `notion_mcp_publisher.py` no publica con errores de estructura.
+- **Corridas E2E (a partir del método de Elias Sanchez):**
+  - §9.5 coherencia entre agentes: la misma decisión según cada agente y el código;
+  - §9.6 documentación publicada, revisada en su destino real al cierre;
+  - §9.7 bloqueos y fallas de la corrida con su causa en logs o código;
+  - §9.8 fuera de alcance: problemas de plataforma que no afectaron la corrida, sin ticket automático.
+
+### Cómo actualizar
+
+1. Actualiza el kit (`qa-update`, o `git pull` en el submódulo) y abre un chat nuevo con `qa-welcome`.
+2. Para publicar un ticket nuevo, cerrar o rechazar: el asistente te entrega el comando con `--confirm`; ejecútalo **tú** en una terminal abierta por ti (no la del asistente) y escribe el AF-XXX cuando lo pida.
+3. Escribe los reportes nuevos desde las plantillas de `report-bug/templates/`; los reportes con el formato anterior no pasan `report_lint.py`.
+4. En tu workspace, agrega `Reportes/.publicaciones.log` al `.gitignore`: es el registro local de tus confirmaciones.
+
+### Cambiado
+
+- **§9.2 de la corrida:** una fila por causa (agrupa los síntomas), con la propuesta del asistente y las columnas **Decisión**, **Motivo** y **Decidido por**, que llena la persona. `validate_run.py` falla si falta la decisión, si un descarte no tiene motivo o si "Decidido por" es el asistente.
+- **Regla en `AGENTS.md`, `report-bug` y `qa-e2e-corrida`:** si la persona delega ("descarta los que consideres"), el asistente devuelve su propuesta y espera. Un ticket por causa, no por síntoma.
+
+---
+
 ## [1.6.0] — 2026-09-30 · Corridas E2E consistentes y publicación con candado
 
 ### Por qué

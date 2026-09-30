@@ -216,11 +216,13 @@ Método (obligatorio; si algún paso no se pudo hacer, esta sección lo dice com
 |---|---|
 | | |
 
-### 9.2 Hallazgos consolidados y relación con el Sheet
+### 9.2 Hallazgos consolidados: propuesta del asistente y decisión humana
 
-| # | Agente | Hallazgo | Severidad | Relación con Sheet (de las tablas 🔍) | Acción propuesta (publicar nuevo / ampliar AF-XXX / ninguna) |
-|---|---|---|---|---|---|
-| | | | | | |
+Una fila por **causa**, no por síntoma: los hallazgos de la misma etapa con la misma raíz se agrupan en una fila (columna "Hallazgos"). El asistente llena hasta "Propuesta"; **las tres últimas columnas las llena la persona** (o el asistente las copia textualmente de lo que la persona escribió en el chat). El asistente nunca decide ni descarta por su cuenta, aunque se lo pidan ("descarta los que consideres"): en ese caso devuelve su propuesta con el motivo y espera la decisión.
+
+| Causa | Hallazgos | Agente | Severidad | Relación con Sheet (de las tablas 🔍) | Propuesta del asistente (y por qué) | Decisión (Ticket / Ampliar AF-XXX / Descartar) | Motivo de la decisión | Decidido por |
+|---|---|---|---|---|---|---|---|---|
+| | | | | | | | | |
 
 ### 9.3 Discrepancias Planificado | Agente | Documentación | Código
 
@@ -233,6 +235,38 @@ Una fila por elemento del documento "Antes" que no llegó intacto al final. "Pri
 ### 9.4 Resultado del plan de revisión de issues
 
 | AF | Resultado | Acción propuesta (cerrar con `qa-finish` / rechazar con `qa-rejection` / ninguna, va a pendientes) |
+|---|---|---|
+| | | |
+
+### 9.5 Coherencia entre agentes
+
+La misma decisión según cada agente y el código. Una fila por decisión que se repite entre etapas (nube, ambientes, entidades del modelo, pantallas, integraciones, reglas). "—" si el agente no la trata; ❌ si contradice lo que dijo otro agente.
+
+| Decisión | PO | Arquitecto | UI/UX | QA | DevOps | Código | ¿Coherente? |
+|---|---|---|---|---|---|---|---|
+| | | | | | | | |
+
+### 9.6 Documentación publicada
+
+Revisada en su destino real (Confluence / Wiki / Boards / Figma) al cierre, no en el chat.
+
+| Documento esperado | ¿Existe? | Enlace | ¿Refleja lo acordado? (qué falta o sobra) |
+|---|---|---|---|
+| | | | |
+
+### 9.7 Bloqueos y fallas de la corrida
+
+Momentos en que un agente se trabó, falló o hubo que reintentar, con su causa en los logs. Se separa de los hallazgos de conducta: aquí se explica qué detuvo la corrida.
+
+| Cuándo (UTC) | Agente / servicio | Qué se vio | Cuánto duró | Causa en logs o código [DB]/[C] | Cómo se destrabó |
+|---|---|---|---|---|---|
+| | | | | | |
+
+### 9.8 Fuera de alcance (sin ticket automático)
+
+Problemas de plataforma o infraestructura vistos durante la corrida que **no la afectaron** (p. ej. alertas por correo, recolección de logs, cambios sin commit en la VM). Quedan anotados para revisión aparte; no entran en la §9.2.
+
+| Qué se vio | Dónde | Por qué no afectó la corrida |
 |---|---|---|
 | | | |
 

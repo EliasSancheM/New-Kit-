@@ -103,6 +103,8 @@ if __name__ == "__main__":
     gate = ["qa-finish", [args[0], args[1], args[2], args[3], build, args[4] if len(args) > 4 else ""]]
     if not dry_run:
         utils.require_confirm(gate[0], gate[1], confirm)
+        utils.require_human_confirmation("Cerrar como Finalizada", args[0], [
+            f"Resumen: {args[1]}", f"Versión probada: {build}", f"Conclusión: {args[3][:200]}"])
 
     res = process_qa_finish(
         defect_id=args[0],

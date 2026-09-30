@@ -272,6 +272,101 @@ def require_confirm(kind: str, parts: list, given: str) -> None:
     sys.exit(CONFIRM_EXIT_CODE)
 
 
+# ---------------------------------------------------------------------------
+# Human gate: new tickets, closures and rejections are confirmed by a person in
+# an interactive terminal, one ticket at a time. Assistants run commands without
+# a terminal (stdin is not a TTY), so they cannot answer; the script refuses
+# immediately instead of hanging. It stops mistakes and hurried automation, not
+# someone who deliberately works around it.
+# ---------------------------------------------------------------------------
+HUMAN_GATE_EXIT_CODE = 5
+PUBLISH_LOG = os.path.join(REPORTS_DIR, ".publicaciones.log")
+
+
+HUMAN_GATE_TIMEOUT_S = 180
+# Variables that AI coding assistants set in the processes they launch. An assistant's
+# process can still own a console, so "stdin is a TTY" alone is not enough to know that a
+# person is typing (tested: under the Claude desktop app the check passed and the script
+# waited on a console nobody could see).
+AGENT_ENV_MARKERS = ("CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "AI_AGENT")
+
+
+def running_under_agent() -> str:
+    return next((k for k in AGENT_ENV_MARKERS if os.environ.get(k)), "")
+
+
+def _read_console_line(prompt: str, timeout: int = HUMAN_GATE_TIMEOUT_S) -> str:
+    """Reads one line from the real console (not from piped stdin). Returns '' on timeout."""
+    import time
+    if os.name == "nt":
+        import msvcrt
+        sys.stderr.write(prompt)
+        sys.stderr.flush()
+        chars, deadline = [], time.time() + timeout
+        while time.time() < deadline:
+            if msvcrt.kbhit():
+                ch = msvcrt.getwch()
+                if ch in ("\r", "\n"):
+                    sys.stderr.write("\n")
+                    return "".join(chars).strip()
+                if ch == "\b":
+                    chars = chars[:-1]
+                    continue
+                chars.append(ch)
+                sys.stderr.write(ch)
+                sys.stderr.flush()
+            else:
+                time.sleep(0.05)
+        return ""
+    import select
+    with open("/dev/tty", "r+", encoding="utf-8", errors="replace") as tty:
+        tty.write(prompt)
+        tty.flush()
+        ready, _, _ = select.select([tty], [], [], timeout)
+        return tty.readline().strip() if ready else ""
+
+
+def log_publication(action: str, defect_id: str, detail: str = "") -> None:
+    try:
+        os.makedirs(os.path.dirname(PUBLISH_LOG), exist_ok=True)
+        import datetime
+        with open(PUBLISH_LOG, "a", encoding="utf-8") as f:
+            f.write(f"{datetime.datetime.now().isoformat(timespec='seconds')}\t{get_user_name()}\t{action}\t"
+                    f"{defect_id}\t{detail}\n")
+    except OSError:
+        pass
+
+
+def require_human_confirmation(action: str, defect_id: str, summary: list) -> None:
+    """Shows what will be written and asks the person to type the defect ID.
+
+    Exits with HUMAN_GATE_EXIT_CODE when there is no interactive terminal or the
+    typed ID does not match. On success, appends the decision to Reportes/.publicaciones.log.
+    """
+    try:
+        interactive = sys.stdin is not None and sys.stdin.isatty()
+    except (AttributeError, ValueError):
+        interactive = False
+    if not interactive or running_under_agent():
+        print(f"[REQUIERE A UNA PERSONA] '{action}' de {defect_id} se confirma en una terminal interactiva. "
+              f"Copia este mismo comando y ejecútalo tú en una terminal propia (PowerShell, CMD o bash abierta por ti, "
+              f"fuera del asistente), desde la raíz del workspace: "
+              f"verás qué se publica y tendrás que escribir {defect_id} para confirmar. El asistente no puede hacer este paso.",
+              file=sys.stderr)
+        sys.exit(HUMAN_GATE_EXIT_CODE)
+    lines = [f"\n=== Confirmación humana: {action} ==="] + [f"  {s}" for s in summary] + [""]
+    try:
+        typed = _read_console_line("\n".join(lines) + f"Escribe {defect_id} para confirmar (Enter vacío cancela): ")
+    except OSError:
+        print("[REQUIERE A UNA PERSONA] No se pudo abrir la terminal para confirmar.", file=sys.stderr)
+        sys.exit(HUMAN_GATE_EXIT_CODE)
+    if typed.strip().upper() != defect_id.strip().upper():
+        print(f"Cancelado: no se escribió el ID correcto (o pasaron {HUMAN_GATE_TIMEOUT_S} s). No se publicó nada.",
+              file=sys.stderr)
+        sys.exit(HUMAN_GATE_EXIT_CODE)
+    log_publication(action, defect_id, " | ".join(s for s in summary if s)[:300])
+
+
 def to_dashed_uuid(raw: str) -> str:
     h = (raw or "").replace("-", "").strip().lower()
     if len(h) != 32:

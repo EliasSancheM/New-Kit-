@@ -136,8 +136,16 @@ Menos detalle que en vivo, misma estructura.
 
 1. **Plan de proyecto (§0.5):** de la idea del documento "Antes" a lo publicado, con el libro de decisiones y enlaces reales.
 2. **Lo bueno por agente (§9.1).**
-3. **Hallazgos consolidados (§9.2):** salen de las tablas 🔍, con la acción propuesta (publicar nuevo / ampliar un AF existente / ninguna). No incluye 6.b.
+3. **Hallazgos consolidados (§9.2): la persona decide, el asistente propone.**
+   - Una fila por **causa**: los hallazgos de la misma etapa con la misma raíz se agrupan (un ticket por causa, no por síntoma). No incluye 6.b ni la §9.8.
+   - El asistente llena la propuesta (ticket / ampliar AF-XXX / descartar) con su motivo. Las columnas **Decisión**, **Motivo** y **Decidido por** son de la persona; el asistente solo las copia textualmente de lo que la persona dijo.
+   - Si la persona delega ("descarta los que consideres", "sube los que creas"), el asistente **no decide**: devuelve la lista con su propuesta y espera. `validate_run.py` falla si falta una decisión, si un descarte no tiene motivo o si "Decidido por" es el asistente.
+   - Se publica solo lo marcado "Ticket" o "Ampliar", y cada ticket nuevo se confirma por separado (ver Paso 4).
 4. **Discrepancias en cuatro aristas (§9.3):** `Planificado | Agente | Documentación | Código`, una fila por elemento RF/RN/UI/CA que no llegó intacto, con la **primera ruptura**.
+4b. **Coherencia entre agentes (§9.5):** la misma decisión (nube, ambientes, entidades, pantallas, integraciones) según cada agente y el código. Una contradicción entre agentes es un hallazgo del agente que se aparta.
+4c. **Documentación publicada (§9.6):** abre en su destino real (Confluence / Wiki / Boards / Figma) cada documento que debía existir y anota si falta o si no refleja lo acordado.
+4d. **Bloqueos y fallas (§9.7):** cada vez que un agente se trabó, falló o hubo que reintentar, con la causa encontrada en logs o código (`[DB]`/`[C]`) y cómo se destrabó.
+4e. **Fuera de alcance (§9.8):** problemas de plataforma vistos durante la corrida que **no la afectaron** (alertas por correo, recolección de logs, cambios sin commit en la VM…). Se anotan para revisión aparte y no pasan a la §9.2. Regla de alcance: un hallazgo de plataforma entra a la §9.2 solo si se observó en la corrida y la afectó.
 5. **Resultado del plan de issues (§9.4):** corregido → proponer cierre con `qa-finish`; persiste → proponer rechazo con `qa-rejection`; no se pudo probar → ninguna acción, va a pendientes.
 6. **Pendientes (§10):** qué quedó sin verificar y por qué.
 7. **Estado final primero.** Repasa el documento completo, no solo las secciones que cambiaron: cada tabla, título y párrafo debe mostrar primero el estado final verificado. Lo que ya se resolvió deja de decir "(en curso)", "(pendiente)", "candidato" o `[H]` en el texto principal; esa historia pasa a una columna "Estado inicial" o a una nota en cursiva "*Registro en vivo: …*". No basta con agregar marcas de cierre al lado del texto viejo.
@@ -146,6 +154,8 @@ Menos detalle que en vivo, misma estructura.
 ## Paso 4: Publicación (solo con confirmación)
 
 Nada se publica solo. Para cada hallazgo de §9.2 o issue de §9.4 que el usuario quiera subir, ejecuta primero el script correspondiente con `--dry-run`: `report-bug` para hallazgos nuevos, `qa-amplify` para duplicados y ampliaciones de tickets existentes (se pueden publicar en lote con `--file`), `qa-finish` / `qa-rejection` para issues del plan re-verificados. Muestra el dry-run y espera la confirmación del usuario en ese turno. Una autorización cubre solo lo que mostraste.
+
+**Tickets nuevos, cierres y rechazos los confirma una persona en su propia terminal, uno por uno.** El asistente prepara los reportes y los comandos; la persona ejecuta el último comando y escribe el ID del ticket para confirmar. Desde el asistente, el script se detiene con código `5`. Las ampliaciones siguen confirmándose en el chat con el código del dry-run.
 
 Los scripts lo exigen: cada `--dry-run` imprime un `confirm_code` calculado sobre el contenido exacto, y la publicación real solo corre con `--confirm <confirm_code>` (si no, sale con código `4` sin escribir nada). Si editas el reporte después del dry-run, el código deja de valer y hay que repetirlo. `qa-finish` y `qa-rejection` exigen además `--build <commit o imagen probada>`: sin la versión probada no se cierra ni se rechaza un ticket, aunque haya "alta confianza".
 

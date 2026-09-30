@@ -16,7 +16,7 @@ Rechaza un defecto cuyo fix no funcionó. Escribe en Notion y Google Sheets, que
 1. **Reúne la evidencia del fallo:** pasos para reproducirlo, entorno y resultado observado frente al esperado. Revisa también qué cambió en el código (`qa-code-audit --issue AF-XXX`).
 2. **Dry-run:** ejecuta con `--dry-run` y `--build` (commit o imagen probada). No escribe nada; muestra la página Nivel 1, la fila, los valores a escribir y un `confirm_code`.
 3. **Muestra el dry-run al usuario y pide confirmación explícita** para este defecto, en este turno.
-4. Solo con un "sí" claro, repite el mismo comando cambiando `--dry-run` por `--confirm <confirm_code>`.
+4. Con un "sí" claro, entrégale a la persona el mismo comando cambiando `--dry-run` por `--confirm <confirm_code>`. **La persona lo ejecuta en su propia terminal** y escribe el AF-XXX para confirmar; desde el asistente el script sale con código `5`.
 
 ```bash
 python <KIT>/skills/qa-rejection/scripts/qa_rejection_publisher.py --dry-run \
@@ -47,3 +47,4 @@ python <KIT>/skills/qa-rejection/scripts/qa_rejection_publisher.py --dry-run \
 - `2`: faltan argumentos (incluye `--build`).
 - `3`: **éxito parcial**. Notion se publicó, pero la hoja NO se actualizó. Avísale al usuario.
 - `4`: bloqueado. Falta `--confirm` o no coincide con el contenido; no se escribió nada.
+- `5`: falta la confirmación de una persona en su terminal (o se canceló). No se escribió nada.

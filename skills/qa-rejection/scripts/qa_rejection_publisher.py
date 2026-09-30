@@ -111,6 +111,8 @@ if __name__ == "__main__":
     gate = ["qa-rejection", [args[0], args[1], args[2], args[3], build, args[4] if len(args) > 4 else ""]]
     if not dry_run:
         utils.require_confirm(gate[0], gate[1], confirm)
+        utils.require_human_confirmation("Rechazar por QA", args[0], [
+            f"Motivo: {args[1]}", f"Versión probada: {build}"])
 
     res = process_qa_rejection(
         defect_id=args[0],

@@ -87,8 +87,25 @@ if __name__ == "__main__":
     # The code covers the file contents: editing a report after its dry-run invalidates it.
     gate = ["report-bug-notion", [utils.file_digest(args[0]), utils.file_digest(args[1]), args[2], args[3],
                                   args[4] if len(args) > 4 else ""]]
+    # Estructura de los reportes (plantillas de report-bug). Con errores no se publica.
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import report_lint
+    lint = {}
+    for kind, path in (("ejecutivo", args[0]), ("tecnico", args[1])):
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            e, w = (report_lint.lint_technical if kind == "tecnico" else report_lint.lint_executive)(fh.read())
+        lint[kind] = {"errors": e, "warnings": w}
+    lint_errors = lint["ejecutivo"]["errors"] + lint["tecnico"]["errors"]
+
     if not dry_run:
+        if lint_errors:
+            print("[BLOQUEADO] Los reportes no cumplen la estructura de las plantillas de report-bug:", file=sys.stderr)
+            for e in lint_errors:
+                print(f"  - {e}", file=sys.stderr)
+            sys.exit(1)
         utils.require_confirm(gate[0], gate[1], confirm)
+        utils.require_human_confirmation("Nuevo defecto en Notion", args[2], [
+            f"Título: {args[3]}", f"Ejecutivo: {args[0]}", f"Técnico: {args[1]}"])
 
     res = publish_nested_defect_pages(
         short_md_path=args[0],
@@ -99,7 +116,10 @@ if __name__ == "__main__":
         dry_run=dry_run
     )
     if dry_run and isinstance(res, dict):
-        res["confirm_code"] = utils.confirm_code(*gate)
+        res["lint"] = lint
+        res["confirm_code"] = utils.confirm_code(*gate) if not lint_errors else None
+        if lint_errors:
+            res["bloqueado_por_lint"] = "Corrige los errores de estructura y repite el dry-run para obtener el código."
     print(json.dumps(res, indent=2, ensure_ascii=False))
     # Exit 3 = Level 1 ok but Level 2 (technical page) failed
     sys.exit(0 if dry_run or res.get("level2_id") else 3)

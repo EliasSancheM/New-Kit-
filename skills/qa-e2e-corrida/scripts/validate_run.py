@@ -40,6 +40,9 @@ REQUIRED_HEADINGS = [
     (r"^### 9\.2", "### 9.2 Hallazgos consolidados"),
     (r"^### 9\.3", "### 9.3 Discrepancias"),
     (r"^### 9\.4", "### 9.4 Resultado del plan de issues"),
+    (r"^### 9\.5", "### 9.5 Coherencia entre agentes"),
+    (r"^### 9\.6", "### 9.6 Documentación publicada"),
+    (r"^### 9\.7", "### 9.7 Bloqueos y fallas de la corrida"),
     (r"^## 10\.", "## 10. Pendientes"),
     (r"^## 11\.", "## 11. Validación del documento"),
 ]
@@ -162,6 +165,23 @@ def validate(path: str) -> dict:
         perf = table_rows_after(sixb, r"Datos de rendimiento")
         if not perf or any(len(r) < 2 or not r[1] for r in perf):
             errors.append("§6.b: la tabla de datos de rendimiento está incompleta (usa 'No aplica' si no hubo código).")
+
+    # §9.2: la decisión de qué es ticket la toma una persona, fila por fila.
+    decisions = [r for r in table_rows_after(text, r"^### 9\.2") if not is_empty_row(r)]
+    for r in decisions:
+        if len(r) < 9:
+            errors.append("§9.2: la tabla no tiene las columnas de decisión humana (Decisión, Motivo, Decidido por); "
+                          "usa la plantilla actual.")
+            break
+        cause, decision, reason, who = r[0] or r[1], r[6], r[7], r[8]
+        if not re.match(r"(?i)^\**\s*(ticket|ampliar\s+AF-\d+|descartar)\b", decision):
+            errors.append(f"§9.2 '{cause[:40]}': falta la decisión humana (Ticket / Ampliar AF-XXX / Descartar).")
+        if not who.strip(" -—"):
+            errors.append(f"§9.2 '{cause[:40]}': falta quién decidió.")
+        if re.match(r"(?i)^\**\s*descartar", decision) and not reason.strip(" -—"):
+            errors.append(f"§9.2 '{cause[:40]}': un descarte necesita motivo.")
+        if re.search(r"(?i)\b(claude|asistente|ia|agy|gemini|gpt)\b", who):
+            errors.append(f"§9.2 '{cause[:40]}': 'Decidido por' debe ser una persona, no el asistente.")
 
     discrepancies = table_rows_after(text, r"^### 9\.3")
     if not [r for r in discrepancies if not is_empty_row(r)] and not re.search(r"(?is)### 9\.3.*?sin discrepancias", text):
