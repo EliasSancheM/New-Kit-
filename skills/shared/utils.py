@@ -224,6 +224,54 @@ _LEVEL2_SUFFIXES = (
     "_reporte_rechazo_qa",
 )
 
+# ---------------------------------------------------------------------------
+# Publish gate: a real write needs the code printed by the matching --dry-run.
+# The code is a hash of exactly what will be written, so a dry-run of other
+# content (or content edited after the dry-run) does not unlock the write.
+# ---------------------------------------------------------------------------
+CONFIRM_EXIT_CODE = 4
+
+
+def confirm_code(kind: str, parts: list) -> str:
+    import hashlib
+    h = hashlib.sha256(kind.encode("utf-8"))
+    for p in parts:
+        h.update(b"\x1f")
+        h.update(str(p if p is not None else "").encode("utf-8"))
+    return h.hexdigest()[:8]
+
+
+def file_digest(path: str) -> str:
+    import hashlib
+    with open(path, "rb") as f:
+        return hashlib.sha256(f.read()).hexdigest()
+
+
+def pop_option(argv: list, name: str) -> tuple:
+    """Removes `name <value>` from argv. Returns (value or None, remaining argv)."""
+    rest, value, i = [], None, 0
+    while i < len(argv):
+        if argv[i] == name and i + 1 < len(argv):
+            value = argv[i + 1]
+            i += 2
+            continue
+        rest.append(argv[i])
+        i += 1
+    return value, rest
+
+
+def require_confirm(kind: str, parts: list, given: str) -> None:
+    """Exits with CONFIRM_EXIT_CODE unless `given` matches the dry-run code for this content."""
+    expected = confirm_code(kind, parts)
+    if given == expected:
+        return
+    reason = "falta --confirm" if not given else "el código no coincide con este contenido"
+    print(f"[BLOQUEADO] Publicación sin dry-run válido ({reason}). Ejecuta primero el mismo comando con "
+          f"--dry-run, muéstrale el resultado al usuario y, con su confirmación, repítelo con "
+          f"--confirm <código que imprime el dry-run>.", file=sys.stderr)
+    sys.exit(CONFIRM_EXIT_CODE)
+
+
 def to_dashed_uuid(raw: str) -> str:
     h = (raw or "").replace("-", "").strip().lower()
     if len(h) != 32:

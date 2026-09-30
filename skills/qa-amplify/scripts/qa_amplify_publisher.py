@@ -162,6 +162,7 @@ def main():
     parser.add_argument("--level1", help="ID de la página Level-1 (solo modo un ticket)")
     parser.add_argument("--link-in-sheet", action="store_true", help="Agrega la URL al final de COMENTARIO QA")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--confirm", help="Código que imprime el --dry-run del mismo lote (obligatorio para publicar)")
     args = parser.parse_args()
 
     jobs = []  # (id, origin, body)
@@ -184,9 +185,18 @@ def main():
             parser.error("uso: AF-XXX \"<origen>\" \"<evidencia>\" (o --body-file), o bien --file ... --origin ...")
         jobs = [(args.defect_id.upper(), args.origin_pos, body)]
 
+    gate_parts = [bool(args.link_in_sheet), args.level1 or ""]
+    for i, o, b in jobs:
+        gate_parts += [i, o, b]
+    if not args.dry_run:
+        utils.require_confirm("qa-amplify", gate_parts, args.confirm)
+
     results = [process(i, o, b, args.dry_run, args.link_in_sheet, args.level1 if not args.file else None)
                for i, o, b in jobs]
-    print(json.dumps({"dry_run": args.dry_run, "pages": results}, ensure_ascii=False, indent=1))
+    out = {"dry_run": args.dry_run, "pages": results}
+    if args.dry_run:
+        out["confirm_code"] = utils.confirm_code("qa-amplify", gate_parts)
+    print(json.dumps(out, ensure_ascii=False, indent=1))
     failed = [r for r in results if "error" in r]
     if failed:
         print(f"{len(failed)} de {len(results)} tickets con error: {', '.join(r['id'] for r in failed)}", file=sys.stderr)

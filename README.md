@@ -5,6 +5,17 @@ El plugin **`iafactory-qa-kit`** empaqueta en una única unidad distribuible tod
 
 ---
 
+## 🆕 Últimas mejoras — v1.6.0 (2026-09-30)
+
+- **Corridas E2E consistentes:** `validate_run.py` revisa el documento de corrida contra la plantilla; se da por terminado solo con 0 errores. La plantilla suma modelo, versión del kit, autores, escala de gravedad y foto de la configuración de agentes.
+- **Publicación con candado:** el `--dry-run` imprime un `confirm_code` y la publicación real exige `--confirm <código>`. Sin él, o si el contenido cambió, sale con código `4` sin escribir.
+- **`qa-finish` y `qa-rejection` exigen `--build`** con la versión probada. ⚠️ Actualiza tus comandos guardados.
+- **`qa-welcome` avisa** si hay copias viejas de las skills o un plugin instalado con otra versión.
+
+Detalle, motivos y cómo actualizar: [docs/mejoras/CHANGELOG.md](docs/mejoras/CHANGELOG.md).
+
+---
+
 ## 🌟 Características Principales
 
 * 🌐 **Multiplataforma:** Ejecutable de forma transparente en **Windows**, **macOS** y **Linux**.
@@ -26,6 +37,7 @@ iafactory-qa-kit/
 ├── rules/
 │   └── AGENTS.md               # Reglas de conducta, seguridad y gobernanza para cualquier IA
 ├── docs/
+│   ├── mejoras/CHANGELOG.md        # Registro de mejoras por versión: qué cambió, cómo y por qué
 │   ├── METODOLOGIA_QA_IAFACTORY.md # Marco metodológico, dualidad de verdad y ciclo de defectos
 │   ├── INSTALL_GUIA_DESDE_CERO.md  # Guía de onboarding paso a paso en computadores nuevos
 │   └── FAST_QA_WORKFLOW.md         # Protocolo de QA acelerado (Batching, tests quirúrgicos, subagentes)
@@ -108,7 +120,7 @@ Clona el kit en tu workspace (por ejemplo, en `.agents/plugins/iafactory-qa-kit`
 
 ### Seguridad al publicar
 
-`report-bug`, `qa-finish` y `qa-rejection` escriben en Notion y Google Sheets compartidos; `qa-amplify` escribe en Notion (y en el Sheet solo con `--link-in-sheet`). Todos aceptan `--dry-run`, que muestra lo que se escribiría sin tocar nada. Los `SKILL.md` obligan al asistente a hacer dry-run y pedir confirmación antes de publicar. Código de salida `3` = éxito parcial (por ejemplo, Notion publicado pero Sheets no actualizado).
+`report-bug`, `qa-finish` y `qa-rejection` escriben en Notion y Google Sheets compartidos; `qa-amplify` escribe en Notion (y en el Sheet solo con `--link-in-sheet`). Todos aceptan `--dry-run`, que muestra lo que se escribiría sin tocar nada e imprime un `confirm_code`. La publicación real exige `--confirm <confirm_code>` del dry-run del mismo contenido; sin él, el script sale con código `4` sin escribir. `qa-finish` y `qa-rejection` exigen además `--build` con la versión probada. Código de salida `3` = éxito parcial (por ejemplo, Notion publicado pero Sheets no actualizado).
 
 ---
 

@@ -29,12 +29,22 @@ def e2e_dir() -> str:
     return os.path.join(utils.REPORTS_DIR, "E2E")
 
 
+def kit_version() -> str:
+    try:
+        with open(os.path.join(utils.PLUGIN_ROOT, "plugin.json"), encoding="utf-8") as f:
+            return json.load(f).get("version", "desconocida")
+    except (OSError, ValueError):
+        return "desconocida"
+
+
 def create(template: str, target: str) -> dict:
     if os.path.exists(target):
         return {"created": False, "path": target, "reason": "ya existe; no se sobrescribe"}
     os.makedirs(os.path.dirname(target), exist_ok=True)
     with open(os.path.join(TEMPLATES_DIR, template), "r", encoding="utf-8") as f:
         content = f.read()
+    content = (content.replace("{{KIT_VERSION}}", kit_version())
+               .replace("{{CREATED_AT}}", datetime.datetime.now().strftime("%Y-%m-%d %H:%M")))
     with open(target, "w", encoding="utf-8") as f:
         f.write(content)
     return {"created": True, "path": target}

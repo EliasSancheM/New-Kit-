@@ -65,6 +65,69 @@ def get_status_data():
 
     return data
 
+def _read_version(plugin_json: str) -> str:
+    try:
+        with open(plugin_json, "r", encoding="utf-8") as f:
+            return json.load(f).get("version", "?")
+    except (OSError, ValueError):
+        return "?"
+
+
+def _file_hash(path: str) -> str:
+    import hashlib
+    try:
+        with open(path, "rb") as f:
+            return hashlib.sha256(f.read().replace(b"\r\n", b"\n")).hexdigest()
+    except OSError:
+        return ""
+
+
+def find_stale_copies() -> list:
+    """Other copies of the kit's skills that an assistant could load instead of this one.
+
+    Different teammates ended up running different methods because an old copy of a skill
+    (in <workspace>/.claude/skills or an older installed plugin) was loaded silently.
+    Returns one entry per copy whose content differs from this kit.
+    """
+    this_version = _read_version(os.path.join(PLUGIN_ROOT, "plugin.json"))
+    this_root = os.path.realpath(PLUGIN_ROOT)
+    stale = []
+
+    ws = utils.WORKSPACE_ROOT if utils else os.getcwd()
+    local_skills = os.path.join(ws, ".claude", "skills")
+    if os.path.isdir(local_skills):
+        for name in sorted(os.listdir(local_skills)):
+            ours = os.path.join(SKILLS_DIR, name, "SKILL.md")
+            theirs = os.path.join(local_skills, name, "SKILL.md")
+            if not os.path.isfile(ours) or not os.path.isfile(theirs):
+                continue
+            if os.path.realpath(theirs) == os.path.realpath(ours):
+                continue  # junction/symlink to this kit: always in sync
+            if _file_hash(ours) != _file_hash(theirs):
+                stale.append({"where": os.path.join(local_skills, name), "kind": "copia en .claude/skills",
+                              "detail": "SKILL.md distinto al del kit"})
+
+    # Claude Code keeps old versions in its cache but only loads what installed_plugins.json lists.
+    registry = os.path.join(os.path.expanduser("~"), ".claude", "plugins", "installed_plugins.json")
+    try:
+        with open(registry, "r", encoding="utf-8") as f:
+            plugins = json.load(f).get("plugins", {})
+    except (OSError, ValueError):
+        plugins = {}
+    for key, installs in plugins.items():
+        if not key.startswith("iafactory-qa-kit"):
+            continue
+        for inst in installs if isinstance(installs, list) else [installs]:
+            path = inst.get("installPath", "")
+            if path and os.path.realpath(path) == this_root:
+                continue
+            v = inst.get("version") or _read_version(os.path.join(path, "plugin.json"))
+            if v != this_version:
+                stale.append({"where": path, "kind": f"plugin instalado en Claude Code ({inst.get('scope', '?')})",
+                              "detail": f"versión {v} (este kit: {this_version})"})
+    return stale
+
+
 RULES_PATH = os.path.join(PLUGIN_ROOT, "rules", "AGENTS.md")
 
 def read_rules() -> str:
@@ -78,6 +141,8 @@ def main():
     if "--json" in sys.argv:
         data = get_status_data()
         data["rules_path"] = RULES_PATH
+        data["kit_root"] = PLUGIN_ROOT
+        data["stale_copies"] = find_stale_copies()
         print(json.dumps(data, indent=2, ensure_ascii=False))
         return
 
@@ -103,6 +168,13 @@ def main():
     p_info = data.get("plugin_info", {})
     print(f"Plugin    : v{p_info.get('version', '1.0.0')} (Commit: `{p_info.get('commit', 'local')}`) | Workspace: {data['workspace_root']}")
     print(f"Usuario   : 👤 {data['reporter']}")
+    print(f"Kit en uso: {PLUGIN_ROOT}")
+    stale = find_stale_copies()
+    if stale:
+        print("\n⚠️ HAY OTRAS COPIAS DEL KIT QUE NO COINCIDEN CON ESTA (pueden cargarse en su lugar y aplicar un método viejo):")
+        for s in stale:
+            print(f"  - [{s['kind']}] {s['where']} → {s['detail']}")
+        print("  👉 Actualízalas (qa-update) o elimínalas, y reinicia el chat. Avísale al usuario antes de seguir.")
     print("-" * 65)
     
     print("\n🔍 ESTADO DE CONECTIVIDAD Y SERVICIOS:")
@@ -129,14 +201,17 @@ def main():
     print("4. Reportar un nuevo defecto (siempre --dry-run primero):")
     print(f"   python \"{kit}/skills/report-bug/scripts/gsheets_updater.py\" --dry-run \"<Título>\" \"<Descripción>\" \"<Gravedad>\"\n")
     print("5. Cerrar y aprobar formalmente un ticket verificado (siempre --dry-run primero):")
-    print(f"   python \"{kit}/skills/qa-finish/scripts/qa_finish_publisher.py\" --dry-run \"AF-XXX\" \"<Resumen>\" \"<Evidencia>\"\n")
+    print(f"   python \"{kit}/skills/qa-finish/scripts/qa_finish_publisher.py\" --dry-run --build \"<commit probado>\" \"AF-XXX\" \"<Resumen>\" \"<Evidencia>\" \"<Conclusión>\"\n")
     print("6. Rechazar formalmente un fix fallido o incompleto (siempre --dry-run primero):")
-    print(f"   python \"{kit}/skills/qa-rejection/scripts/qa_rejection_publisher.py\" --dry-run \"AF-XXX\" \"<Motivo>\" \"<Detalle>\" \"<Diff>\"\n")
+    print(f"   python \"{kit}/skills/qa-rejection/scripts/qa_rejection_publisher.py\" --dry-run --build \"<commit probado>\" \"AF-XXX\" \"<Motivo>\" \"<Detalle>\" \"<Diff>\"\n")
+    print("   Para publicar de verdad: el mismo comando con --confirm <confirm_code del dry-run> en vez de --dry-run.\n")
     print("7. Agregar evidencia a un ticket existente sin cambiar su estado (siempre --dry-run primero):")
     print(f"   python \"{kit}/skills/qa-amplify/scripts/qa_amplify_publisher.py\" --dry-run \"AF-XXX\" \"<Origen>\" \"<Evidencia>\"\n")
     print("8. Corrida E2E: crear el documento 'Antes' del proyecto y el de la corrida (método en skills/qa-e2e-corrida/SKILL.md):")
     print(f"   python \"{kit}/skills/qa-e2e-corrida/scripts/new_run.py\" proyecto <slug>")
-    print(f"   python \"{kit}/skills/qa-e2e-corrida/scripts/new_run.py\" corrida <empresa> <slug>\n")
+    print(f"   python \"{kit}/skills/qa-e2e-corrida/scripts/new_run.py\" corrida <empresa> <slug>")
+    print("   Al cerrar, validar el documento (0 errores para darlo por terminado):")
+    print(f"   python \"{kit}/skills/qa-e2e-corrida/scripts/validate_run.py\" <documento_corrida.md>\n")
     print("=" * 65)
     print(f"📖 Metodología completa: {kit}/docs/METODOLOGIA_QA_IAFACTORY.md")
 

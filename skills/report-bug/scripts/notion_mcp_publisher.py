@@ -79,10 +79,16 @@ def publish_nested_defect_pages(
 
 if __name__ == "__main__":
     dry_run = "--dry-run" in sys.argv
-    args = [a for a in sys.argv[1:] if a != "--dry-run"]
+    confirm, args = utils.pop_option([a for a in sys.argv[1:] if a != "--dry-run"], "--confirm")
     if len(args) < 4:
-        print("Usage: python notion_mcp_publisher.py [--dry-run] <short_md_path> <tech_md_path> <defect_id> <short_title> [parent_page_id]")
+        print("Usage: python notion_mcp_publisher.py [--dry-run | --confirm <código>] <short_md_path> <tech_md_path> <defect_id> <short_title> [parent_page_id]")
         sys.exit(2)
+
+    # The code covers the file contents: editing a report after its dry-run invalidates it.
+    gate = ["report-bug-notion", [utils.file_digest(args[0]), utils.file_digest(args[1]), args[2], args[3],
+                                  args[4] if len(args) > 4 else ""]]
+    if not dry_run:
+        utils.require_confirm(gate[0], gate[1], confirm)
 
     res = publish_nested_defect_pages(
         short_md_path=args[0],
@@ -92,6 +98,8 @@ if __name__ == "__main__":
         parent_page_id=args[4] if len(args) > 4 else None,
         dry_run=dry_run
     )
+    if dry_run and isinstance(res, dict):
+        res["confirm_code"] = utils.confirm_code(*gate)
     print(json.dumps(res, indent=2, ensure_ascii=False))
     # Exit 3 = Level 1 ok but Level 2 (technical page) failed
     sys.exit(0 if dry_run or res.get("level2_id") else 3)

@@ -26,7 +26,7 @@ Registra un defecto nuevo en Notion y en Google Sheets. Escribe en sistemas comp
    python <KIT>/skills/report-bug/scripts/gsheets_updater.py --dry-run \
      "<nombre del defecto>" "<descripción técnica>" "<Critica|Alta|Media|Baja>"
    ```
-5. **Pide confirmación explícita.** Con un "sí" claro, ejecuta los mismos comandos sin `--dry-run`: primero Notion, y luego Sheets pasándole como 4.º argumento la `level1_url` que devolvió Notion.
+5. **Pide confirmación explícita.** Con un "sí" claro, ejecuta los mismos comandos cambiando `--dry-run` por `--confirm <confirm_code>` (cada dry-run imprime el suyo): primero Notion, y luego Sheets pasándole como 4.º argumento la `level1_url` que devolvió Notion. La URL no forma parte del código de Sheets, así que agregarla no lo invalida. Si editas un reporte después del dry-run, su código deja de valer: repite el dry-run.
 
 ## Códigos de salida
 
@@ -34,6 +34,7 @@ Registra un defecto nuevo en Notion y en Google Sheets. Escribe en sistemas comp
 - `1`: fallo.
 - `2`: faltan argumentos.
 - `3` (Notion): la página Nivel 1 se creó pero la técnica (Nivel 2) falló. Avisa al usuario antes de seguir con Sheets.
+- `4`: bloqueado. Falta `--confirm` o no coincide con el contenido; no se escribió nada.
 
 ## Notas
 

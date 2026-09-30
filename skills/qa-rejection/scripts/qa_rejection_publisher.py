@@ -18,7 +18,7 @@ import datetime
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "shared"))
 import utils
 
-def generate_local_rejection_report(defect_id: str, reason: str, test_details: str, code_changes_found: str, user_name: str) -> tuple:
+def generate_local_rejection_report(defect_id: str, reason: str, test_details: str, code_changes_found: str, user_name: str, build: str = "") -> tuple:
     today_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     target_dir = os.path.join(utils.REPORTS_DIR, "rechazo")
     os.makedirs(target_dir, exist_ok=True)
@@ -31,7 +31,8 @@ def generate_local_rejection_report(defect_id: str, reason: str, test_details: s
 
 **Estado:** ❌ **RECHAZADO POR QA**  
 **Fecha de Validación:** {today_str} (-04:00)  
-**Validado por:** {user_name} / QA Team  
+**Validado por:** {user_name} / QA Team
+**Build / commit probado:** `{build}`
 
 ---
 
@@ -60,7 +61,7 @@ La revisión y prueba de replicación en vivo para el issue **{defect_id}** ha s
         f.write(content)
     return filepath, content
 
-def process_qa_rejection(defect_id: str, reason: str, test_details: str, code_changes_found: str, level1_page_id: str = None, dry_run: bool = False):
+def process_qa_rejection(defect_id: str, reason: str, test_details: str, code_changes_found: str, level1_page_id: str = None, dry_run: bool = False, build: str = ""):
     user_name = utils.get_user_name()
     if dry_run:
         return utils.publish_qa_outcome(
@@ -69,7 +70,7 @@ def process_qa_rejection(defect_id: str, reason: str, test_details: str, code_ch
             evidence=test_details, tech_details=code_changes_found,
             level1_page_id=level1_page_id, dry_run=True,
         )
-    filepath, content = generate_local_rejection_report(defect_id, reason, test_details, code_changes_found, user_name)
+    filepath, content = generate_local_rejection_report(defect_id, reason, test_details, code_changes_found, user_name, build)
     print(f"Reporte de rechazo local generado: {filepath}")
 
     result = utils.publish_qa_outcome(
@@ -98,10 +99,18 @@ def process_qa_rejection(defect_id: str, reason: str, test_details: str, code_ch
 
 if __name__ == "__main__":
     dry_run = "--dry-run" in sys.argv
-    args = [a for a in sys.argv[1:] if a != "--dry-run"]
-    if len(args) < 4:
-        print("Usage: python qa_rejection_publisher.py [--dry-run] <defect_id> <reason> <test_details> <code_changes_found> [level1_page_id]")
+    argv = [a for a in sys.argv[1:] if a != "--dry-run"]
+    confirm, argv = utils.pop_option(argv, "--confirm")
+    build, args = utils.pop_option(argv, "--build")
+    if len(args) < 4 or not (build or "").strip():
+        print("Usage: python qa_rejection_publisher.py [--dry-run | --confirm <código>] --build <commit|imagen probada> "
+              "<defect_id> <reason> <test_details> <code_changes_found> [level1_page_id]")
+        print("--build es obligatorio: un rechazo sin la versión probada no se publica.")
         sys.exit(2)
+
+    gate = ["qa-rejection", [args[0], args[1], args[2], args[3], build, args[4] if len(args) > 4 else ""]]
+    if not dry_run:
+        utils.require_confirm(gate[0], gate[1], confirm)
 
     res = process_qa_rejection(
         defect_id=args[0],
@@ -109,10 +118,14 @@ if __name__ == "__main__":
         test_details=args[2],
         code_changes_found=args[3],
         level1_page_id=args[4] if len(args) > 4 else None,
-        dry_run=dry_run
+        dry_run=dry_run,
+        build=build,
     )
     if not res:
         sys.exit(1)
+    if dry_run and isinstance(res, dict):
+        res["build"] = build
+        res["confirm_code"] = utils.confirm_code(*gate)
     print(json.dumps(res, indent=2, ensure_ascii=False))
     # Exit 3 = Notion published but Sheets not updated (partial success)
     sys.exit(0 if dry_run or res.get("sheet_updated") else 3)

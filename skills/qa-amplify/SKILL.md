@@ -24,9 +24,9 @@ Si el ticket está `Finalizada` y el problema volvió a aparecer, es una posible
 ## Protocolo obligatorio
 
 1. **Redacta la evidencia:** qué se vio, con su fuente (`[R]` observado, `[DB]` base de datos o logs, `archivo:línea`), y qué aporta respecto al ticket original. No repitas lo que el ticket ya dice.
-2. **Dry-run:** no escribe nada. Por cada ticket muestra la página Nivel 1 destino, el título, el estado actual en el Sheet y un extracto del contenido.
+2. **Dry-run:** no escribe nada. Por cada ticket muestra la página Nivel 1 destino, el título, el estado actual en el Sheet y un extracto del contenido, y al final un `confirm_code` que cubre todo el lote.
 3. **Muestra el dry-run al usuario y pide confirmación explícita** en este turno. Una confirmación cubre el lote que mostraste, no otros.
-4. Solo con un "sí" claro, ejecuta sin `--dry-run`.
+4. Solo con un "sí" claro, repite el mismo comando cambiando `--dry-run` por `--confirm <confirm_code>`. Si cambias el lote (otro `--only`, otro texto), el código no sirve: repite el dry-run.
 
 ### Un ticket
 
@@ -70,7 +70,8 @@ Cada viñeta de la última sección se publica como una subpágina corta en su t
 
 | Opción | Efecto |
 |---|---|
-| `--dry-run` | No escribe nada. Úsala siempre primero. |
+| `--dry-run` | No escribe nada. Úsala siempre primero; imprime el `confirm_code`. |
+| `--confirm <código>` | Obligatorio para publicar: el código del dry-run del mismo lote. |
 | `--only AF-X,AF-Y` | Publica solo esos tickets del archivo. |
 | `--level1 <id>` | Página Nivel 1 explícita (solo con un ticket), si no se resuelve sola. |
 | `--link-in-sheet` | Agrega la URL de la subpágina al final de COMENTARIO QA sin borrar lo que había. Apagado por defecto; úsalo solo si el usuario lo pide. |
@@ -90,6 +91,7 @@ Un ticket con error no detiene el lote: el resultado indica el error de cada uno
 - `0`: todo publicado (o dry-run sin errores).
 - `1`: algún ticket falló o ya tenía esa subpágina. Revisa el campo `error` de cada uno en el JSON.
 - `2`: argumentos inválidos.
+- `4`: bloqueado. Falta `--confirm` o no coincide con el lote; no se escribió nada.
 
 ## Si falla
 
