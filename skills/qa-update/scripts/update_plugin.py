@@ -3,7 +3,7 @@
 IAFactory QA Kit - Auto-Updater & Version Manager CLI
 -----------------------------------------------------
 Checks for new versions of the iafactory-qa-kit plugin from its remote Git
-repository (https://github.com/AlonsoSalasApiux/iafactory-qa-kit.git).
+repository configured as `origin` (if any).
 Allows verifying update status, viewing new commits/changelog, and safely
 updating the plugin with a single command.
 

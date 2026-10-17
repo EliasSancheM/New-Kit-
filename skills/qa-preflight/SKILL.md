@@ -1,6 +1,6 @@
 ---
 name: qa-preflight
-description: Diagnóstico previo a probar en vivo contra una VM (dev, qa, team-devs u otra de environments.json). Revisa túneles IAP, puertos de PostgreSQL/Qdrant, credenciales de gcloud y Notion, y el estado de contenedores y repos en la VM. Úsala antes de cualquier prueba en vivo, cuando el usuario diga que algo no conecta o que el túnel no anda, o pregunte si un entorno está arriba. El diagnóstico es de solo lectura; abrir o cerrar túneles requiere confirmación. / Pre-flight connectivity and environment check.
+description: Diagnóstico previo a probar en vivo contra una VM (dev, qa, team-devs u otra de environments.json). Revisa túneles IAP, puertos de PostgreSQL/Qdrant, el token de Google Sheets, y el estado de contenedores y repos en la VM. Úsala antes de cualquier prueba en vivo, cuando el usuario diga que algo no conecta o que el túnel no anda, o pregunte si un entorno está arriba. El diagnóstico es de solo lectura; abrir o cerrar túneles requiere confirmación. / Pre-flight connectivity and environment check.
 ---
 
 # QA Preflight (`qa-preflight`)

@@ -1,7 +1,7 @@
 """
 QA Pre-flight Connectivity & Environment Check CLI
 --------------------------------------------------
-Checks local TCP ports (IAP tunnel), cloud credentials, Notion MCP, and directories.
+Checks local TCP ports (IAP tunnel), the Google Sheets token source and directories.
 Runs in less than 500 ms and outputs structured diagnostic status.
 """
 import sys
@@ -62,15 +62,10 @@ def main():
         open_status = check_tcp_port(host, port + offset)
         results["ports"][name] = {"port": port + offset, "reachable": open_status}
 
-    # 2. Credentials
-    try:
-        gcloud_tok = utils.get_gcloud_token()
-    except RuntimeError:
-        gcloud_tok = None
-    results["credentials"]["gcloud_auth"] = bool(gcloud_tok and not gcloud_tok.startswith("ERROR"))
-
-    notion_tok = utils.get_notion_token()
-    results["credentials"]["notion_token"] = bool(notion_tok)
+    # 2. Credentials: which source gives a Sheets token (pegado / refresh / gcloud / none)
+    source = utils.sheets_token_source()
+    results["credentials"]["sheets_token"] = bool(source)
+    results["credentials"]["sheets_token_source"] = source or None
 
     # 3. Directories
     results["directories"]["reports_dir"] = os.path.exists(utils.REPORTS_DIR)
@@ -89,8 +84,10 @@ def main():
         print(f"  {icon} {name} (Puerto {data['port']}): `{status_txt}`")
 
     print("\n**2. Credenciales y Autenticación:**")
-    print(f"  {'✅' if results['credentials']['gcloud_auth'] else '❌'} Google Cloud API: `{'OK' if results['credentials']['gcloud_auth'] else 'Sin sesión gcloud'}`")
-    print(f"  {'✅' if results['credentials']['notion_token'] else '❌'} Notion API Token: `{'OK' if results['credentials']['notion_token'] else 'Falta NOTION_TOKEN en .env'}`")
+    src = results["credentials"]["sheets_token_source"]
+    print(f"  {'✅' if src else '❌'} Google Sheets API: `{('OK, token ' + src) if src else 'sin token'}`")
+    if not src:
+        print(f"     👉 {utils.SHEETS_TOKEN_HELP}")
 
     print("\n**3. Directorios de Almacenamiento:**")
     print(f"  {'✅' if results['directories']['reports_dir'] else '⚠️'} Carpeta Reportes/: `{utils.REPORTS_DIR}`")

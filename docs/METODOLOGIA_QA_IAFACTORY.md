@@ -10,12 +10,11 @@ El ecosistema IAFactory opera bajo una estricta separación de responsabilidades
 
 1. **Google Sheets Online (Fuente Única de Estado):**
    - Es la fuente de verdad **exclusiva y en tiempo real** para la lista de incidencias, estados (`Pendiente`, `En Revisión`, `Finalizada`, `Rechazada por QA`), severidad, desarrollador asignado y fechas.
-   - **No existen matrices locales en CSV o Excel.** Toda consulta y mutación se realiza online vía la API oficial mediante las skills `qa-backlog`, `qa-finish`, `qa-rejection` y `report-bug`.
+   - **No existen matrices locales en CSV o Excel.** Toda consulta y mutación se realiza online vía la API oficial mediante las skills `qa-backlog`, `qa-finish`, `qa-rejection`, `qa-amplify` y `report-bug`. Toda escritura necesita un token de Sheets vigente (ver `.env.example`).
 
-2. **Notion (Fuente de Evidencia Técnica Profunda):**
-   - Cada defecto cuenta con una estructura documental de **2 niveles anidados**:
-     - **Nivel 1 (Página Principal):** Resumen ejecutivo, contexto operativo, criterios de impacto y enlace en Google Sheets.
-     - **Nivel 2 (Subpáginas Técnicas):** Análisis de causa raíz, logs de Docker, diffs de código y resoluciones/rechazos de QA (`_tecnico`, `_cierre`, `_rechazo`).
+2. **Comentario QA (Evidencia Técnica en la misma fila):**
+   - Desde la versión 1.8.0 no se usa Notion. La columna COMENTARIO QA de cada defecto guarda el reporte completo: ejecutivo + técnico al reportar (`report-bug`), el reporte de éxito o de rechazo al cerrar (`qa-finish`, `qa-rejection`) y bloques "Ampliación (<origen>)" con evidencia posterior (`qa-amplify`). Tope: 45.000 caracteres por celda.
+   - Los archivos markdown de `Reportes/` en el workspace de cada QA son la copia local de trabajo.
 
 3. **Obsidian Vault Local (`docs/vault/`), opcional:**
    - Espejo local de una sola dirección (el kit escribe, nada lo lee de vuelta). Desactivado por defecto; se activa con `QA_KIT_OBSIDIAN=1`. Cada publicación reescribe la nota completa del defecto con la gravedad real de la planilla.
@@ -58,6 +57,6 @@ Cualquier ingeniero o asistente de IA debe seguir estas 4 fases obligatorias al 
 3. **Propuesta de Revisión en Vivo:** Plan detallado paso a paso para validar empíricamente la solución en caliente (endpoints, servicios, contenedores, logs de Docker o casos de prueba en navegador/API).
 4. **🛑 Cero Mutaciones sin Autorización Previa:**
    - **Prohibido ejecutar `qa-finish` o `qa-rejection` de forma autónoma.**
-   - No se alterará ninguna celda de estado en Google Sheets ni se publicará el veredicto en Notion sin visto bueno explícito del usuario ("Proceder", "Aprobado", "Rechazar ticket").
+   - No se alterará ninguna celda de estado en Google Sheets ni se escribirá el veredicto en Comentario QA sin visto bueno explícito del usuario ("Proceder", "Aprobado", "Rechazar ticket").
 
 > 💡 **Excepción:** Si la consulta es puntual (*"revisa si está en checkout"*, *"¿está el commit en HEAD dev?"*), responder directamente con commit VM vs remoto y estado SÍ/NO sin disparar las 4 fases.

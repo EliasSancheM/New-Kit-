@@ -91,6 +91,19 @@ def lint_technical(text: str) -> tuple:
     return errors, warnings
 
 
+def guess_kind(path: str) -> str:
+    """'tecnico' when the file name says so (AF-1_x_tecnico.md, tecnico.md) or its first lines do."""
+    base = os.path.basename(path).lower()
+    if base.endswith("_tecnico.md") or base == "tecnico.md":
+        return "tecnico"
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            head = fh.read(600).lower()
+    except OSError:
+        return "ejecutivo"
+    return "tecnico" if "análisis técnico" in head or "analisis tecnico" in head else "ejecutivo"
+
+
 def main():
     parser = argparse.ArgumentParser(description="Revisa la estructura de los reportes de un defecto.")
     parser.add_argument("files", nargs="*")
@@ -102,7 +115,7 @@ def main():
     if args.tecnico:
         jobs.append(("tecnico", args.tecnico))
     for f in args.files:
-        jobs.append(("tecnico" if os.path.basename(f).lower().endswith("_tecnico.md") else "ejecutivo", f))
+        jobs.append((guess_kind(f), f))
     if not jobs:
         parser.print_help()
         sys.exit(2)

@@ -87,9 +87,9 @@ Leída en solo lectura antes de escribirle a Maya (`company_agent_profiles` u ot
 ---
 
 <!--
-Bloque por agente. Repetir para cada agente que participó, en orden:
-1 Maya · 2 Product Owner · 3 Arquitecto · 4 UI/UX · 5 QA · 6 Developer · 7 DevSec · 8 DevOps
-Si un agente no participó, dejar su sección con una sola línea: "No participó (según workflow.agent_plan)".
+Bloque por agente, en orden: 1 Maya · 2 Product Owner · 3 Arquitecto · 4 UI/UX · 5 QA · 6 Developer · 7 DevSec · 8 DevOps.
+new_run.py copia el bloque de Maya en las secciones 2, 3, 4, 5, 7 y 8 con su prefijo (PO-, AR-, UX-, QA-, SEC-, OPS-).
+Si un agente no participó, reemplaza todo su bloque por una sola línea: "No participó (según workflow.agent_plan)".
 -->
 
 ## 1. Maya (orquestador)
@@ -155,13 +155,15 @@ Consulta: `fetch_issues.py --status all --limit 1000 --json` el <fecha hora>.
 | | | | |
 
 #### 🔍 Contraste con el Sheet en vivo (solo hallazgos de 6.a)
+Consulta: `fetch_issues.py --status all --limit 1000 --json` el <fecha hora>.
+
 | # | ¿Ya reportado? | AF-XXX | Estado actual en Sheet | Relación | Nota |
 |---|---|---|---|---|---|
 | DEV-1 | | | | | |
 
 ### 6.b Código entregado — referencia de rendimiento del Developer (no se reporta en ningún lado)
 
-Solo se menciona en este documento. Sin ticket, sin Notion, sin contraste con el Sheet.
+Solo se menciona en este documento. Sin ticket y sin contraste con el Sheet.
 
 Método (obligatorio; si algún paso no se pudo hacer, esta sección lo dice como **revisión parcial**, no solo en §10):
 1. Clonar el repo publicado (no el workspace del contenedor) y registrar repo, rama y **commit revisado**. Comprobar que no sea un repo vacío duplicado.

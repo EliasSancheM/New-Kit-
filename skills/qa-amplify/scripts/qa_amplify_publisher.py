@@ -2,26 +2,24 @@
 QA Amplify Publisher
 --------------------
 Adds new evidence to an existing defect (AF-XXX) WITHOUT changing its status:
-publishes a subpage 'AF-XXX_ampliacion_<origen>' under the defect's Level-1
-Notion page and keeps a local copy in Reportes/ampliaciones/.
-
-The Sheet status is never touched. With --link-in-sheet, the subpage URL is
-appended to the end of COMENTARIO QA (existing text is kept).
+appends a block "--- Ampliación (<origen>) ---" at the end of COMENTARIO QA in
+the sheet and keeps a local copy in Reportes/ampliaciones/. ESTADO is never touched.
 
 Usage:
   One ticket:
-    qa_amplify_publisher.py [--dry-run] AF-XXX "<origen>" "<evidencia markdown>" [--level1 <page_id>]
+    qa_amplify_publisher.py [--dry-run] AF-XXX "<origen>" "<evidencia markdown>"
     qa_amplify_publisher.py [--dry-run] AF-XXX "<origen>" --body-file <evidencia.md>
   Several tickets from a file with sections separated by a '---' line:
     qa_amplify_publisher.py [--dry-run] --file <ampliaciones.md> --origin "<origen>" [--only AF-X,AF-Y]
 
   File format:
-    ## AF-231 — <título>            -> one subpage with the section body
-    ## AF-231 / AF-245 — <título>   -> same body published on both tickets
+    ## AF-231 — <título>            -> one block with the section body
+    ## AF-231 / AF-245 — <título>   -> same body appended to both tickets
     ## Evidencia adicional para duplicados
-    - **AF-300** (<nota>): <texto>  -> one short subpage per bullet
+    - **AF-300** (<nota>): <texto>  -> one short block per bullet
 
-Exit codes: 0 all ok (or dry-run) / 1 some ticket failed / 2 bad arguments.
+Exit codes: 0 all ok (or dry-run) / 1 some ticket failed / 2 bad arguments /
+4 missing or stale --confirm / 6 no Sheets token.
 """
 import os
 import re
@@ -29,7 +27,6 @@ import sys
 import json
 import argparse
 import datetime
-import urllib.request
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "shared"))
 import utils
@@ -61,39 +58,15 @@ def parse_file(text: str) -> list[tuple[list[str], str]]:
     return items
 
 
-def list_child_titles(page_id: str) -> list[str] | None:
-    """Titles of the child pages of a Notion page (REST). None if it can't be read."""
-    token = utils.get_notion_token()
-    if not token:
-        return None
-    titles, cursor = [], None
-    try:
-        while True:
-            url = f"https://api.notion.com/v1/blocks/{page_id}/children?page_size=100"
-            if cursor:
-                url += f"&start_cursor={cursor}"
-            req = urllib.request.Request(url, headers={
-                "Authorization": f"Bearer {token}", "Notion-Version": "2022-06-28"})
-            with urllib.request.urlopen(req, context=utils.get_ssl_context(), timeout=20) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-            titles += [b["child_page"]["title"] for b in data.get("results", []) if b.get("type") == "child_page"]
-            if not data.get("has_more"):
-                return titles
-            cursor = data.get("next_cursor")
-    except Exception as e:
-        print(f"Warning: no se pudieron leer las subpáginas de {page_id} ({e})", file=sys.stderr)
-        return None
-
-
-def build_markdown(defect_id: str, origin: str, body: str) -> str:
+def build_block(origin: str, body: str) -> str:
     today = datetime.date.today().isoformat()
-    return (f"> Evidencia adicional ({origin}), agregada el {today} por {utils.get_user_name()}. "
-            f"Se agrega sin cambiar el estado del ticket.\n\n{body.strip()}\n")
+    return (f"--- Ampliación ({origin}) ---\n{today}, {utils.get_user_name()}. Evidencia adicional; "
+            f"el estado del ticket no cambia.\n\n{body.strip()}")
 
 
-def process(defect_id: str, origin: str, body: str, dry_run: bool, link_in_sheet: bool, level1: str = None) -> dict:
-    title = f"{defect_id}_ampliacion_{safe_origin(origin)}"
-    rec = {"id": defect_id, "subpage_title": title}
+def process(defect_id: str, origin: str, body: str, dry_run: bool) -> dict:
+    name = f"{defect_id}_ampliacion_{safe_origin(origin)}"
+    rec = {"id": defect_id, "name": name}
 
     row_idx = utils.find_sheet_row_for_defect(defect_id)
     rec["sheet_row"] = row_idx
@@ -101,55 +74,34 @@ def process(defect_id: str, origin: str, body: str, dry_run: bool, link_in_sheet
         rec["error"] = "no está en el Sheet"
         return rec
     rec["estado_actual"] = utils.get_sheet_cell(row_idx, "estado")
-
-    l1_id, l1_url = (level1, None) if level1 else utils.resolve_level1_from_sheet(defect_id)
-    if not l1_id:
-        l1_id, l1_url = utils.find_notion_level1_page_id(defect_id)
-    rec["level1_page_id"] = l1_id
-    if not l1_id:
-        rec["error"] = "sin página Level-1 (revisa la URL de Notion en COMENTARIO QA o pasa --level1)"
-        return rec
-
-    children = list_child_titles(l1_id)
-    if children is not None and title in children:
-        rec["error"] = "ya existe una subpágina con ese título; no se duplica (usa otro origen si es evidencia distinta)"
+    current = utils.get_sheet_cell(row_idx, "comentario_qa")
+    header = f"--- Ampliación ({origin}) ---"
+    if header in current:
+        rec["error"] = "ya hay una ampliación con ese origen en Comentario QA; no se duplica (usa otro origen si es evidencia distinta)"
         rec["already_exists"] = True
         return rec
-    if children is None:
-        rec["warning"] = "no se pudo comprobar si la subpágina ya existe"
 
-    md = build_markdown(defect_id, origin, body)
-    rec["chars"] = len(md)
-    rec["link_in_sheet"] = link_in_sheet
+    block = build_block(origin, body)
+    new_comment = utils.truncate_comment((current.rstrip() + "\n\n" if current.strip() else "") + block)
+    rec["chars_agregados"] = len(block)
+    rec["chars_total"] = len(new_comment)
     if dry_run:
-        rec["preview"] = md[:600] + ("…" if len(md) > 600 else "")
+        rec["preview"] = block[:600] + ("…" if len(block) > 600 else "")
         return rec
 
-    page = utils.call_notion_mcp("create_page", {"parent": {"page_id": l1_id}, "title": title, "markdown": md})
-    if not page:
-        rec["error"] = "falló la creación en Notion"
-        return rec
-    rec["url"] = utils.notion_public_url(page.get("url", ""))
+    utils.batch_update_sheet_row(row_idx, {"comentario_qa": new_comment})
+    rec["sheet_updated"] = True
 
     target_dir = os.path.join(utils.REPORTS_DIR, "ampliaciones")
     os.makedirs(target_dir, exist_ok=True)
-    local = os.path.join(target_dir, f"{title}.md")
+    local = os.path.join(target_dir, f"{name}.md")
     with open(local, "w", encoding="utf-8") as f:
-        f.write(f"# {title}\n\n{md}\n\nNotion: {rec['url']}\n")
+        f.write(f"# {name}\n\n{block}\n")
     rec["local_file"] = local
-
-    if link_in_sheet:
-        try:
-            current = utils.get_sheet_cell(row_idx, "comentario_qa")
-            utils.batch_update_sheet_row(row_idx, {
-                "comentario_qa": (current + "\n" if current else "") + f"Ampliación ({origin}): {rec['url']}"})
-            rec["sheet_linked"] = True
-        except Exception as e:
-            rec["sheet_linked"] = False
-            rec["error"] = f"Notion publicado, pero no se pudo agregar el enlace al Sheet ({e})"
     return rec
 
 
+@utils.exit_on_auth_error
 def main():
     parser = argparse.ArgumentParser(description="Agrega evidencia a un AF-XXX existente sin cambiar su estado.")
     parser.add_argument("defect_id", nargs="?")
@@ -159,8 +111,6 @@ def main():
     parser.add_argument("--file", help="Archivo con secciones '## AF-XXX — título'")
     parser.add_argument("--origin", help="Origen (con --file), p. ej. E2E_Apiux_2026-09-25")
     parser.add_argument("--only", help="Solo estos IDs, separados por coma")
-    parser.add_argument("--level1", help="ID de la página Level-1 (solo modo un ticket)")
-    parser.add_argument("--link-in-sheet", action="store_true", help="Agrega la URL al final de COMENTARIO QA")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--confirm", help="Código que imprime el --dry-run del mismo lote (obligatorio para publicar)")
     args = parser.parse_args()
@@ -185,15 +135,14 @@ def main():
             parser.error("uso: AF-XXX \"<origen>\" \"<evidencia>\" (o --body-file), o bien --file ... --origin ...")
         jobs = [(args.defect_id.upper(), args.origin_pos, body)]
 
-    gate_parts = [bool(args.link_in_sheet), args.level1 or ""]
+    gate_parts = []
     for i, o, b in jobs:
         gate_parts += [i, o, b]
     if not args.dry_run:
         utils.require_confirm("qa-amplify", gate_parts, args.confirm)
 
-    results = [process(i, o, b, args.dry_run, args.link_in_sheet, args.level1 if not args.file else None)
-               for i, o, b in jobs]
-    out = {"dry_run": args.dry_run, "pages": results}
+    results = [process(i, o, b, args.dry_run) for i, o, b in jobs]
+    out = {"dry_run": args.dry_run, "tickets": results}
     if args.dry_run:
         out["confirm_code"] = utils.confirm_code("qa-amplify", gate_parts)
     print(json.dumps(out, ensure_ascii=False, indent=1))

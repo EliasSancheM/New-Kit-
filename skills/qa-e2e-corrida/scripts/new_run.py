@@ -11,6 +11,7 @@ overwrites an existing file. Only writes local files.
   new_run.py where                              -> prints the resolved folder
 """
 import os
+import re
 import sys
 import json
 import argparse
@@ -37,6 +38,27 @@ def kit_version() -> str:
         return "desconocida"
 
 
+# Sections that the template leaves as a one-line comment; each gets a copy of Maya's block.
+AGENT_BLOCKS = [("2", "Product Owner", "PO"), ("3", "Arquitecto", "AR"), ("4", "UI/UX", "UX"),
+                ("5", "QA", "QA"), ("7", "DevSec", "SEC"), ("8", "DevOps", "OPS")]
+
+
+def expand_agent_blocks(content: str) -> str:
+    """Copies the Maya block (## 1. ... up to the next '---') into the sections that the
+    template marks with '<!-- mismo bloque ... -->', changing heading and finding prefix.
+    A new document then only fails validation for empty content, never for structure."""
+    m = re.search(r"^## 1\. Maya.*?(?=^---\s*$)", content, re.M | re.S)
+    if not m:
+        return content
+    maya = m.group(0)
+    for num, name, prefix in AGENT_BLOCKS:
+        block = re.sub(r"^## 1\. Maya[^\n]*", f"## {num}. {name}", maya, count=1, flags=re.M)
+        block = block.replace("MY-", f"{prefix}-")
+        content = re.sub(rf"^## {num}\. {re.escape(name)}\s*\n<!--[^\n]*-->\s*\n", block.rstrip() + "\n\n", content,
+                         count=1, flags=re.M)
+    return content
+
+
 def create(template: str, target: str) -> dict:
     if os.path.exists(target):
         return {"created": False, "path": target, "reason": "ya existe; no se sobrescribe"}
@@ -45,6 +67,8 @@ def create(template: str, target: str) -> dict:
         content = f.read()
     content = (content.replace("{{KIT_VERSION}}", kit_version())
                .replace("{{CREATED_AT}}", datetime.datetime.now().strftime("%Y-%m-%d %H:%M")))
+    if template == "plantilla_corrida.md":
+        content = expand_agent_blocks(content)
     with open(target, "w", encoding="utf-8") as f:
         f.write(content)
     return {"created": True, "path": target}

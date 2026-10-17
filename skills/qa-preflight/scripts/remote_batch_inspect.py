@@ -111,7 +111,7 @@ def execute_remote_batch(env: dict):
             capture_output=True,
             text=True,
             timeout=90,
-            shell=(os.name == "nt")
+            shell=False
         )
     except subprocess.TimeoutExpired:
         return {"error": f"Timeout (90 s) conectando por SSH/IAP a {env['instance']}."}

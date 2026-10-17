@@ -18,4 +18,4 @@
 
 ## Relacionados
 - <AF-XXX relacionados, o "ninguno encontrado en el Sheet (consulta --status all del <fecha>)">
-- Detalle técnico: subpágina `AF-XXX_<nombre>_tecnico`.
+- Detalle técnico: `AF-XXX_<nombre>_tecnico.md`, publicado a continuación en la misma celda Comentario QA.

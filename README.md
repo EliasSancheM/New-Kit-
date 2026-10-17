@@ -1,23 +1,16 @@
 # 📦 Plugin: IAFactory QA Kit (`iafactory-qa-kit`)
 ### Kit Autónomo, Portable y Multi-IA para Aseguramiento de Calidad y Observabilidad
 
-El plugin **`iafactory-qa-kit`** empaqueta en una única unidad distribuible todo el ciclo de vida de defectos, publicación en Google Sheets y Notion (con espejo local opcional en Obsidian), auditoría de cambios Git y chequeos de conectividad para **IAFactory**.
+El plugin **`iafactory-qa-kit`** empaqueta en una única unidad distribuible todo el ciclo de vida de defectos, publicación en Google Sheets, auditoría de cambios Git, corridas E2E y chequeos de conectividad para **IAFactory**.
 
 ---
 
-## 🆕 Últimas mejoras — v1.7.1 (2026-09-30)
+## 🆕 Últimas mejoras — v1.8.0 (2026-10-17)
 
-> ⚠️ **Si usas el kit como plugin de Claude Code, actualízalo esta vez a mano** (tu `qa-update` actual no sabe hacerlo): `claude plugin marketplace update iafactory-qa` y después `claude plugin update iafactory-qa-kit@iafactory-qa`, y reinicia Claude Code. Desde la v1.7.1, `qa-update` actualiza también el plugin.
-
-**v1.7.1:** `qa-update` actualiza el plugin instalado en Claude Code además de la copia del workspace, y `--check` funciona desde el plugin instalado.
-
-**v1.7.0:**
-
-- **La persona decide qué es un ticket.** Tickets nuevos, cierres y rechazos se confirman en **tu** terminal, uno por uno, escribiendo el AF-XXX. Desde el asistente, los scripts salen con código `5`. ⚠️ El último comando de publicación ahora lo ejecutas tú.
-- **Plantillas de reporte** (ejecutivo y técnico) y `report_lint.py`: sin síntoma, pasos, versión y causa con `archivo:línea` (o "Causa no identificada"), el reporte no se publica.
-- **Corridas E2E:** la §9.2 agrupa por causa y registra la decisión humana (validada por `validate_run.py`); nuevas secciones de coherencia entre agentes, documentación publicada, bloqueos y fallas, y fuera de alcance.
-
-Versión anterior (v1.6.0): validador de corridas E2E, `--confirm` en todos los publicadores y `--build` en cierres y rechazos.
+- **Solo Google Sheets.** Notion queda fuera: el reporte completo de cada defecto (ejecutivo + técnico, cierre o rechazo, ampliaciones) vive en la columna **Comentario QA** de su fila. Los markdown de `Reportes/` son tu copia local.
+- **Publicar en un paso.** `report-bug` recibe los dos reportes markdown y escribe la fila; no se copian título ni descripción ni se traslada ninguna URL.
+- **Token de Sheets pegado.** `SHEETS_ACCESS_TOKEN` en el `.env` del workspace (OAuth Playground, dura 60 min). Cuando vence, los scripts salen con código `6` y el asistente te pide uno nuevo. Sigue funcionando la sesión de gcloud, y se admite un cliente OAuth propio con renovación automática.
+- **Corregido:** la confirmación humana ahora usa `input()` (en Windows no recibía teclas); la carpeta del kit ya no se toma como workspace; `new_run.py` genera el documento de corrida con todas las secciones por agente.
 
 Detalle, motivos y cómo actualizar: [docs/mejoras/CHANGELOG.md](docs/mejoras/CHANGELOG.md).
 
@@ -37,60 +30,31 @@ Detalle, motivos y cómo actualizar: [docs/mejoras/CHANGELOG.md](docs/mejoras/CH
 ```text
 iafactory-qa-kit/
 ├── plugin.json                 # Manifiesto oficial del plugin
-├── mcp_config.json             # Configuración del servidor MCP de Notion
 ├── setup.py                    # Asistente interactivo de instalación y diagnóstico
 ├── requirements.txt            # Dependencias opcionales de desarrollo (ruff, mypy, pytest)
-├── .env.example                # Plantilla de variables de entorno (Tokens, IDs)
+├── .env.example                # Plantilla de variables de entorno (token de Sheets, repos, E2E)
+├── environments.json           # VMs del equipo (dev, qa, team-devs)
 ├── rules/
 │   └── AGENTS.md               # Reglas de conducta, seguridad y gobernanza para cualquier IA
 ├── docs/
 │   ├── mejoras/CHANGELOG.md        # Registro de mejoras por versión: qué cambió, cómo y por qué
-│   ├── METODOLOGIA_QA_IAFACTORY.md # Marco metodológico, dualidad de verdad y ciclo de defectos
+│   ├── METODOLOGIA_QA_IAFACTORY.md # Marco metodológico, fuentes de verdad y ciclo de defectos
 │   ├── INSTALL_GUIA_DESDE_CERO.md  # Guía de onboarding paso a paso en computadores nuevos
 │   └── FAST_QA_WORKFLOW.md         # Protocolo de QA acelerado (Batching, tests quirúrgicos, subagentes)
 └── skills/
-    ├── shared/                 # Utilidades comunes (Tokens, dynamic mapping, Obsidian, Notion)
+    ├── shared/                 # Utilidades comunes (token de Sheets, mapeo de columnas, candados)
     │   └── utils.py
-    ├── qa-help/                # [NUEVO] Catálogo interactivo de skills, scripts, sintaxis y flags
-    │   ├── SKILL.md
-    │   └── scripts/help.py
-    ├── qa-welcome/             # Onboarding guiado y autodiagnóstico de bienvenida
-    │   ├── SKILL.md
-    │   └── scripts/welcome.py
+    ├── qa-help/                # Catálogo interactivo de skills, scripts, sintaxis y flags
+    ├── qa-welcome/             # Onboarding guiado, autodiagnóstico y carga de reglas
     ├── qa-backlog/             # Consulta y filtrado de issues en Google Sheets
-    │   ├── SKILL.md
-    │   └── scripts/fetch_issues.py
     ├── qa-code-audit/          # Agregador de diffs, status y runner quirúrgico rápido
-    │   ├── SKILL.md
-    │   └── scripts/
-    │       ├── audit_changes.py
-    │       └── fast_test_runner.py       # [ACELERADO] Vitest / Python targeted runner
     ├── qa-preflight/           # Chequeo de túneles IAP e inspección remota en lote
-    │   ├── SKILL.md
-    │   └── scripts/
-    │       ├── check_env.py              # Diagnóstico local de puertos y credenciales
-    │       └── remote_batch_inspect.py   # [ACELERADO] Inspección consolidada en 1 viaje a la VM
-    ├── report-bug/             # Reporte formal de nuevo defecto (MD + Notion + Sheets)
-    │   ├── SKILL.md
-    │   └── scripts/
-    │       ├── gsheets_updater.py
-    │       └── notion_mcp_publisher.py
-    ├── qa-finish/              # Aprobación y cierre formal (MD + Notion + 'Finalizada')
-    │   ├── SKILL.md
-    │   └── scripts/qa_finish_publisher.py
-    ├── qa-rejection/           # Rechazo formal de QA (MD + Warning Banner + 'Rechazada por QA')
-    │   ├── SKILL.md
-    │   └── scripts/qa_rejection_publisher.py
-    ├── qa-amplify/             # Evidencia adicional sobre un defecto existente (Notion, sin cambiar estado)
-    │   ├── SKILL.md
-    │   └── scripts/qa_amplify_publisher.py
-    ├── qa-e2e-corrida/         # Planificación y documentación de corridas E2E (en vivo o retroactivas)
-    │   ├── SKILL.md
-    │   ├── templates/          # plantilla_proyecto.md ("Antes") y plantilla_corrida.md
-    │   └── scripts/new_run.py
+    ├── report-bug/             # Reporte formal de nuevo defecto (plantillas + lint + fila en Sheets)
+    ├── qa-finish/              # Aprobación y cierre formal ('Finalizada')
+    ├── qa-rejection/           # Rechazo formal de QA ('Rechazada por QA')
+    ├── qa-amplify/             # Evidencia adicional sobre un defecto existente (sin cambiar estado)
+    ├── qa-e2e-corrida/         # Planificación, documentación y validación de corridas E2E
     └── qa-update/              # Verificación de versiones y auto-actualización del plugin
-        ├── SKILL.md
-        └── scripts/update_plugin.py
 ```
 
 ---
@@ -101,12 +65,14 @@ Las skills son carpetas con un `SKILL.md` y scripts en Python (solo biblioteca e
 
 ### Claude Code (recomendado para Claude)
 
-Como plugin, desde una sesión interactiva de Claude Code:
+Como plugin, desde una sesión interactiva de Claude Code, apuntando a la copia local del kit (el repo se mantiene en local, sin remoto):
 
 ```
-/plugin marketplace add AlonsoSalasApiux/iafactory-qa-kit
+/plugin marketplace add C:/Users/<usuario>/Desktop/Repositorios/.agents/plugins/iafactory-qa-kit
 /plugin install iafactory-qa-kit@iafactory-qa
 ```
+
+Después de cada commit local nuevo: `claude plugin marketplace update iafactory-qa` y `claude plugin update iafactory-qa-kit@iafactory-qa`, y reinicia Claude Code.
 
 Alternativa sin gestor de plugins: clona el kit en tu workspace y enlaza cada carpeta de `skills/` (menos `shared/`) dentro de `.claude/skills/` del workspace.
 
@@ -114,23 +80,23 @@ Alternativa sin gestor de plugins: clona el kit en tu workspace y enlaza cada ca
 
 Clona el kit en tu workspace (por ejemplo, en `.agents/plugins/iafactory-qa-kit`) y agrega a las instrucciones del asistente (`AGENTS.md`, `.cursorrules`, etc.) una referencia a `rules/AGENTS.md` y a `skills/*/SKILL.md`. Prompt de instalación:
 
-> *"Instala el IAFactory QA Kit desde `https://github.com/AlonsoSalasApiux/iafactory-qa-kit.git` en `.agents/plugins/iafactory-qa-kit`, ejecuta `python .agents/plugins/iafactory-qa-kit/skills/qa-welcome/scripts/welcome.py` y preséntame el estado del entorno."*
+> *"Instala el IAFactory QA Kit (copia local del repo) en `.agents/plugins/iafactory-qa-kit`, ejecuta `python .agents/plugins/iafactory-qa-kit/skills/qa-welcome/scripts/welcome.py` y preséntame el estado del entorno."*
 
 ### Configuración
 
-1. Copia `.env.example` a `.env` y completa `NOTION_TOKEN` y `USER_NAME`.
-2. Ejecuta `gcloud auth login --enable-gdrive-access`.
-3. **VMs (dev, qa, team-devs):** vienen definidas en `environments.json`. Usa `--env <nombre>` en los scripts de `qa-preflight`, o `QA_KIT_ENV` en el `.env` para fijar la VM por defecto.
-4. **Si gcloud o los scripts fallan con `CERTIFICATE_VERIFY_FAILED`** (antivirus o proxy que intercepta TLS): ejecuta `python skills/qa-preflight/scripts/build_ca_bundle.py` y agrega al `.env` la línea que imprime.
-5. **Obsidian (opcional):** `QA_KIT_OBSIDIAN=1` activa el espejo local `docs/vault/defectos/`.
-6. **Si tu workspace no tiene la estructura de IAFactory:** define `QA_KIT_REPOS` (carpetas de los repos de producto) y, si la autodetección falla, `WORKSPACE_ROOT`. También puedes crear un archivo vacío `.qa-kit-root` en la raíz de tu workspace para marcarla.
+1. Copia `.env.example` a `.env` **en la raíz de tu workspace** y completa `USER_NAME`.
+2. **Token de Google Sheets** (ver `.env.example`): pega `SHEETS_ACCESS_TOKEN` del OAuth Playground cuando vayas a publicar, o configura un cliente OAuth propio, o ejecuta `gcloud auth login --enable-gdrive-access`.
+3. **Repos de producto:** si no están en la raíz del workspace, `QA_KIT_REPOS=ia-factory/ai-factory-core,...`.
+4. **VMs (dev, qa, team-devs):** vienen definidas en `environments.json`. Usa `--env <nombre>` en los scripts de `qa-preflight`, o `QA_KIT_ENV` en el `.env` para fijar la VM por defecto.
+5. **Si gcloud o los scripts fallan con `CERTIFICATE_VERIFY_FAILED`** (antivirus o proxy que intercepta TLS): ejecuta `python skills/qa-preflight/scripts/build_ca_bundle.py` y agrega al `.env` la línea que imprime.
+6. **Corridas E2E:** `QA_KIT_E2E_DIR` fija dónde se guardan los documentos (por defecto `Reportes/E2E/` del workspace).
+7. **Obsidian (opcional):** `QA_KIT_OBSIDIAN=1` activa el espejo local `docs/vault/defectos/`.
 
 ### Seguridad al publicar
 
-`report-bug`, `qa-finish` y `qa-rejection` escriben en Notion y Google Sheets compartidos; `qa-amplify` escribe en Notion (y en el Sheet solo con `--link-in-sheet`). Todos aceptan `--dry-run`, que muestra lo que se escribiría sin tocar nada e imprime un `confirm_code`. La publicación real exige `--confirm <confirm_code>` del dry-run del mismo contenido; sin él, el script sale con código `4` sin escribir. `qa-finish` y `qa-rejection` exigen además `--build` con la versión probada. Código de salida `3` = éxito parcial (por ejemplo, Notion publicado pero Sheets no actualizado).
+`report-bug`, `qa-finish`, `qa-rejection` y `qa-amplify` escriben en la planilla compartida. Todos aceptan `--dry-run`, que muestra lo que se escribiría sin tocar nada e imprime un `confirm_code`. La publicación real exige `--confirm <confirm_code>` del dry-run del mismo contenido; sin él, el script sale con código `4` sin escribir. Tickets nuevos, cierres y rechazos se confirman además **en la terminal de la persona**, escribiendo el AF-XXX (desde un asistente, código `5`). `qa-finish` y `qa-rejection` exigen `--build` con la versión probada. Código `6` = falta el token de Sheets o venció.
 
 ---
-
 
 ## 🚀 Inicio Rápido (Quickstart)
 
@@ -138,7 +104,7 @@ El kit está pensado para usarse **conversando con tu asistente de IA**, no ejec
 
 ### 1. Empieza cada chat de QA con `qa-welcome`
 
-Pídele: *"Inicia el QA Kit"* o *"prepárate para QA"*. El asistente revisa tu entorno (Python, gcloud, token de Notion, repos) y carga las reglas del kit, que rigen toda la conversación: honestidad primero, dry-run y confirmación antes de escribir en Sheets o Notion, sin commits ni cambios en las VMs por iniciativa propia. Si falta configuración, te dirá qué hacer.
+Pídele: *"Inicia el QA Kit"* o *"prepárate para QA"*. El asistente revisa tu entorno (Python, token de Sheets, repos) y carga las reglas del kit, que rigen toda la conversación: honestidad primero, dry-run y confirmación antes de escribir en la planilla, sin commits ni cambios en las VMs por iniciativa propia. Si falta configuración, te dirá qué hacer.
 
 En Claude Code con el plugin instalado, el hook de inicio de sesión ya carga las reglas; igual conviene pedir el diagnóstico la primera vez.
 
@@ -159,25 +125,25 @@ En Claude Code con el plugin instalado, el hook de inicio de sesión ya carga la
 
 ### 3. Flujo típico para verificar un ticket
 
-1. **Backlog:** *"¿Qué hay en revisión?"* → eliges un ticket.
+1. **Backlog:** *"¿Qué hay en revisión?"* → eliges un ticket. Su reporte completo está en Comentario QA.
 2. **Entorno:** *"¿Está listo QA para probar?"* → el asistente revisa túneles y contenedores (solo lectura).
 3. **Código:** *"Revisa qué cambió en AF-XXX"* → ves los commits y el diff.
 4. **Prueba:** la haces tú, o le pides al asistente que te guíe con la plantilla de 4 fases de `rules/AGENTS.md`.
-5. **Resultado:** *"pasó, ciérralo"* (`qa-finish`), *"sigue fallando, recházalo"* (`qa-rejection`), o *"no se está re-verificando, solo agrégale esta evidencia"* (`qa-amplify`). Si encontraste algo distinto: *"repórtalo como bug nuevo"* (`report-bug`).
+5. **Resultado:** *"pasó, ciérralo"* (`qa-finish`), *"sigue fallando, recházalo"* (`qa-rejection`), o *"no se está re-verificando, solo agrégale esta evidencia"* (`qa-amplify`). Si encontraste algo distinto: *"repórtalo como bug nuevo"* (`report-bug`). Antes del comando final, el asistente te pide el token de Sheets fresco: lo pegas en el `.env` y ejecutas el comando en tu terminal.
 
 ### 4. Corridas E2E
 
 Pídele *"vamos a hacer una corrida E2E de <proyecto>"*. El asistente (`qa-e2e-corrida`):
 
 1. **Antes:** redacta contigo el documento del proyecto (requerimientos, reglas de negocio, pantallas, criterios de aceptación) y, si quieres, un plan de qué issues pendientes revisar aprovechando la corrida (puede filtrarlos por responsable).
-2. **Durante:** documenta cada agente en un único archivo: lo que funcionó, los hallazgos en limpio y, al final de cada sección, el contraste contra el Sheet en vivo.
-3. **Cierre:** hallazgos consolidados, discrepancias `Planificado | Agente | Documentación | Código` y resultado del plan de issues. Luego te propone qué publicar: bugs nuevos con `report-bug`, duplicados y ampliaciones con `qa-amplify`, y tickets re-verificados con `qa-finish` o `qa-rejection`.
+2. **Durante:** documenta cada agente en un único archivo creado por `new_run.py`, ya con todas las secciones: lo que funcionó, los hallazgos en limpio y, al final de cada sección, el contraste contra el Sheet en vivo.
+3. **Cierre:** hallazgos consolidados con tu decisión fila por fila, discrepancias `Planificado | Agente | Documentación | Código`, `validate_run.py` sin errores, y luego te propone qué publicar: bugs nuevos con `report-bug`, duplicados y ampliaciones con `qa-amplify`, y tickets re-verificados con `qa-finish` o `qa-rejection`.
 
 También sirve para auditar una corrida ya terminada: *"audita la corrida del proyecto <ID> en QA"*. El código que genera el agente Developer se evalúa solo como referencia de rendimiento; no se reporta como ticket. Los documentos quedan en `QA_KIT_E2E_DIR` (por defecto `Reportes/E2E/`).
 
 ### 5. Lo que el asistente nunca hace sin tu "sí"
 
-- Escribir en Google Sheets o Notion: siempre te muestra antes un dry-run.
+- Escribir en Google Sheets: siempre te muestra antes un dry-run y te pide el token fresco.
 - Hacer commit o push.
 - Levantar, detener o reiniciar servicios en las VMs, o abrir túneles.
 

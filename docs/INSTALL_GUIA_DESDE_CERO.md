@@ -20,14 +20,13 @@
 
 ## 1. Requisitos Previos del Sistema
 
-En un computador nuevo, asegúrate de contar con estas cuatro herramientas base instaladas:
+En un computador nuevo, asegúrate de contar con estas herramientas base instaladas:
 
 | Herramienta | Versión Mínima | Propósito | Enlace de Descarga |
 | :--- | :--- | :--- | :--- |
 | **Python** | `>= 3.8` | Motor de ejecución de las skills del plugin | [python.org](https://www.python.org/downloads/) |
-| **Node.js & npx** | `>= 18.0 (LTS)` | Servidor MCP de Notion (`npx notion-mcp-server`) | [nodejs.org](https://nodejs.org/) |
 | **Git** | `>= 2.30` | Inspección de diffs, historial y versionamiento | [git-scm.com](https://git-scm.com/) |
-| **Google Cloud SDK (`gcloud`)** | Última versión | Autenticación OAuth2 contra Google Sheets API | [cloud.google.com/sdk](https://cloud.google.com/sdk/docs/install) |
+| **Google Cloud SDK (`gcloud`)** | Última versión | Túneles IAP a las VMs; también sirve de token para Google Sheets si no pegas uno | [cloud.google.com/sdk](https://cloud.google.com/sdk/docs/install) |
 
 ---
 
@@ -59,23 +58,25 @@ Este script validará automáticamente que todas las herramientas estén en el `
 
 ## 3. Configuración de Autenticación y Secretos
 
-El plugin requiere acceso a **Google Sheets** y a **Notion**:
+El plugin solo escribe en **Google Sheets**. Necesita un token OAuth con el scope `spreadsheets`; el kit prueba estas fuentes en orden:
 
-### A. Autenticación en Google Cloud (Google Sheets API)
-Inicia sesión en la consola con tu cuenta corporativa autorizada:
+### A. Token pegado desde el OAuth Playground (el que usa el equipo)
+1. Entra a [developers.google.com/oauthplayground](https://developers.google.com/oauthplayground), autoriza `https://www.googleapis.com/auth/spreadsheets` y copia el `access_token` (`ya29...`).
+2. Pégalo en el `.env` de la **raíz del workspace**:
+   ```env
+   SHEETS_ACCESS_TOKEN=ya29.xxxxxxxx
+   USER_NAME=Tu Nombre y Apellido
+   ```
+3. Dura 60 minutos. Cuando vence, los scripts salen con código `6` y el asistente te pide uno nuevo. Nunca pegues el token en el chat.
+
+### B. Cliente OAuth propio (sin pegar nada cada hora)
+Si creas un cliente OAuth en Google Cloud Console y lo autorizas una vez en el Playground, guarda en el `.env` `SHEETS_CLIENT_ID`, `SHEETS_CLIENT_SECRET` y `SHEETS_REFRESH_TOKEN`: el kit renueva el token solo.
+
+### C. Sesión de gcloud
 ```bash
 gcloud auth login --enable-gdrive-access
 ```
-*Verificación:* Ejecuta `gcloud auth print-access-token`. Si devuelve un token largo alfanumérico, la conexión con Google Sheets está lista.
-
-### B. Configuración del Token de Notion
-1. Obtén tu token de integración interna en [Notion Developers](https://www.notion.so/my-integrations).
-2. Asegúrate de que la integración tenga permisos sobre la página contenedora de QA (`MDs pruebas`).
-3. Abre el archivo `.env` en la raíz del workspace (o dentro del plugin) y asigna tu token:
-   ```env
-   NOTION_TOKEN=ntn_xxxxxxxxxxxxxxxxxxxxxxxxxxxx
-   USER_NAME=Tu Nombre y Apellido
-   ```
+*Verificación:* `python .agents/plugins/iafactory-qa-kit/skills/qa-preflight/scripts/check_env.py` muestra qué fuente de token está activa.
 
 ---
 
@@ -85,7 +86,7 @@ El plugin está diseñado bajo la **especificación abierta de Agent Skills**, p
 
 ### 4.1 Google Antigravity
 * **Detección Automática:** Antigravity detecta por diseño cualquier plugin alojado en `.agents/plugins/<nombre>/`.
-* **Carga Progresiva:** Las reglas en `rules/AGENTS.md` se aplican automáticamente, y las 5 skills (`qa-backlog`, `qa-code-audit`, `qa-preflight`, `qa-finish`, `qa-rejection`) quedan disponibles para el agente según las necesite.
+* **Carga Progresiva:** Las reglas en `rules/AGENTS.md` se aplican automáticamente, y las skills (`qa-backlog`, `qa-code-audit`, `qa-preflight`, `report-bug`, `qa-finish`, `qa-rejection`, `qa-amplify`, `qa-e2e-corrida`) quedan disponibles para el agente según las necesite.
 
 ### 4.2 Claude Code
 Para usar este kit con Claude Code:
@@ -108,7 +109,7 @@ Para usar este kit con Claude Code:
 Cualquier desarrollador o pipeline de CI/CD puede utilizar las herramientas directamente desde la consola sin depender de una IA:
 ```bash
 # Ver backlog en formato Markdown o JSON
-python .agents/plugins/iafactory-qa-kit/skills/qa-backlog/scripts/fetch_issues.py --status "Pendiente"
+python .agents/plugins/iafactory-qa-kit/skills/qa-backlog/scripts/fetch_issues.py --status "En Revisión"
 
 # Diagnóstico de puertos de túnel en 500 ms
 python .agents/plugins/iafactory-qa-kit/skills/qa-preflight/scripts/check_env.py

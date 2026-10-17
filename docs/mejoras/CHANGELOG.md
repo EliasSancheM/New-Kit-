@@ -6,6 +6,38 @@ Formato de cada entrada: **Nuevo** (capacidades nuevas), **Cambiado** (comportam
 
 ---
 
+## [1.8.0] — 2026-10-17 · Solo Google Sheets, token pegado y publicación en un paso
+
+### Por qué
+
+El 15 de octubre las publicaciones del kit no se pudieron hacer con el kit: la confirmación humana leía el teclado con `msvcrt` y en Windows no recibía ninguna tecla; la resolución de la página Nivel 1 de Notion pasaba por `npx notion-mcp-server` con 12 s de tope y fallaba al azar, y el respaldo REST solo sabía crear páginas. Se publicaron 18 tickets y 8 veredictos con scripts improvisados y sin Notion. Además, si la sesión arrancaba dentro de la carpeta del kit, el kit se tomaba a sí mismo como workspace y escribía los reportes dentro del plugin. El equipo decidió dejar de usar Notion: Google Sheets pasa a ser el único registro compartido.
+
+### Cambiado
+
+- **Sin Notion.** Se eliminan `notion_mcp_publisher.py`, `mcp_config.json`, `NOTION_TOKEN` y todo el cliente MCP/REST. El reporte completo de cada defecto vive en la columna **Comentario QA** de su fila (tope 45.000 caracteres): ejecutivo + técnico al reportar, reporte de éxito o de rechazo al cerrar, y bloques "Ampliación (<origen>)" con evidencia posterior. Los markdown de `Reportes/` siguen siendo la copia local.
+- **`report-bug` publica en un paso.** `gsheets_updater.py` recibe los dos reportes markdown, pasa `report_lint.py`, lee título, gravedad y síntoma del ejecutivo y escribe la fila. Ya no se copian título ni descripción como argumentos ni hay URL que trasladar. Si la planilla ya asignó el ID del reporte a otro defecto, sale con código `2` y dice a cuál renombrar.
+- **`qa-finish` y `qa-rejection`** resuelven la fila y muestran su estado actual **antes** de pedir la confirmación, escriben también FECHA TERMINO y guardan el reporte completo en Comentario QA. Desaparecen el 5.º argumento `level1_page_id` y el código de salida `3`.
+- **`qa-amplify`** agrega la evidencia al final de Comentario QA. Se eliminan `--level1` y `--link-in-sheet`.
+- **Token de Google Sheets.** Nueva fuente principal: `SHEETS_ACCESS_TOKEN` en el `.env` del workspace, pegado desde el OAuth Playground (dura 60 minutos). Si venció, los scripts salen con código `6` y dicen qué pegar. También se admite un cliente OAuth propio (`SHEETS_CLIENT_ID`, `SHEETS_CLIENT_SECRET`, `SHEETS_REFRESH_TOKEN`) con renovación automática, y la sesión de gcloud sigue funcionando. Regla nueva en `AGENTS.md`: el asistente pide el token fresco antes de cada publicación o cambio de estado.
+- **`qa-backlog`:** el filtro por defecto pasa a `Reportada,En Revisión,En curso` ("Pendiente" no existe en la planilla) y la tabla muestra el inicio de Comentario QA.
+
+### Corregido
+
+- **Confirmación humana con `input()`** (y un tiempo límite en un hilo) en lugar de `msvcrt.kbhit()`. Funciona en PowerShell, CMD, Windows Terminal y Git Bash. El bloqueo a asistentes y el registro en `Reportes/.publicaciones.log` siguen igual.
+- **La carpeta del kit nunca se toma como workspace**, aunque contenga un `Reportes/` dejado por una corrida anterior. Antes, al arrancar dentro del kit, los reportes y el `.env` del workspace se buscaban en el lugar equivocado.
+- **Corridas E2E:** `new_run.py` copia el bloque de Maya en las secciones 2, 3, 4, 5, 7 y 8 con su prefijo, así que el documento nuevo solo falla la validación por contenido vacío, no por estructura; la plantilla de 6.a incluye la línea de consulta con `--status all`; `validate_run.py` ignora los comentarios HTML de la plantilla.
+- `report_lint.py` reconoce el reporte técnico por su encabezado, no solo por el sufijo del archivo.
+- `QA_KIT_REPOS` admite subcarpetas (por ejemplo `ia-factory/ai-factory-core`).
+
+### Cómo actualizar
+
+1. Actualiza el kit (`qa-update`) y abre un chat nuevo con `qa-welcome`.
+2. En el `.env` del workspace: quita `NOTION_TOKEN`; agrega `SHEETS_ACCESS_TOKEN=` cuando vayas a publicar (o el cliente OAuth propio); si tus repos no están en la raíz, `QA_KIT_REPOS` con sus rutas relativas.
+3. `report-bug`: el comando ahora recibe los dos archivos markdown, no título/descripción/gravedad. `qa-finish` y `qa-rejection`: sin 5.º argumento. `qa-amplify`: sin `--level1` ni `--link-in-sheet`.
+4. Los scripts improvisados de `Reportes/publicar/` ya no hacen falta.
+
+---
+
 ## [1.7.1] — 2026-09-30 · `qa-update` también actualiza el plugin de Claude Code
 
 ### Por qué

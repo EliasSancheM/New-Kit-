@@ -1,9 +1,9 @@
 """
 QA Backlog Fetcher & Triage CLI
 -------------------------------
-Queries Google Sheets API v4 using gcloud access token and outputs structured
-backlog issues filtered by status, defect ID, or severity.
-Supports both Markdown and JSON output.
+Queries Google Sheets API v4 and outputs structured backlog issues filtered by
+status, defect ID, assignee or severity. Supports both Markdown and JSON output.
+Exit codes: 0 ok / 6 no Sheets token.
 """
 import sys
 import os
@@ -15,16 +15,19 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "shared"))
 import utils
 import unicodedata
 
+DEFAULT_STATUS = "Reportada,En Revisión,En curso"
+
 
 def normalize(text: str) -> str:
     """Lowercase and strip accents so 'José' matches 'jose'."""
     return "".join(c for c in unicodedata.normalize("NFD", text.lower()) if unicodedata.category(c) != "Mn")
 
 
+@utils.exit_on_auth_error
 def main():
     parser = argparse.ArgumentParser(description="Fetch and triage IAFactory QA backlog from Google Sheets.")
-    parser.add_argument("--status", type=str, default="Pendiente,En Revisión,Reportada",
-                        help="Comma-separated status filter (e.g., 'Pendiente,En Revisión')")
+    parser.add_argument("--status", type=str, default=DEFAULT_STATUS,
+                        help=f"Comma-separated status filter, or 'all' (default: '{DEFAULT_STATUS}')")
     parser.add_argument("--id", type=str, default="", help="Filter by specific defect ID (e.g. AF-185)")
     parser.add_argument("--responsable", type=str, default="",
                         help="Filter by assignee; case- and accent-insensitive partial match, comma-separated for several people")
@@ -70,14 +73,15 @@ def main():
 
     print(f"\n### 📋 Backlog de Incidencias QA ({len(defects)} encontradas)")
     print(f"**Filtro:** `{args.status}` | **Límite:** `{args.limit}`\n")
-    print("| ID | Estado | Gravedad | Título / Nombre | Responsable | Commits | Notion / Comentarios |")
+    print("| ID | Estado | Gravedad | Título / Nombre | Responsable | Commits | Comentario QA (inicio) |")
     print("| :--- | :--- | :--- | :--- | :--- | :--- | :--- |")
 
     for d in defects:
-        n_url = d["comentario_qa"].replace("\n", " ").strip()
-        link_str = f"[Notion]({n_url})" if "http" in n_url else n_url[:30]
+        comment = " ".join(d["comentario_qa"].split())[:60]
         commits_str = d["id_commits"] or d["commits"] or "-"
-        print(f"| **{d['id']}** | `{d['estado']}` | {d['gravedad'] or 'N/A'} | {d['nombre'][:40]} | {d['responsable'] or 'Sin asignar'} | `{commits_str[:15]}` | {link_str} |")
+        print(f"| **{d['id']}** | `{d['estado']}` | {d['gravedad'] or 'N/A'} | {d['nombre'][:40]} | "
+              f"{d['responsable'] or 'Sin asignar'} | `{commits_str[:15]}` | {comment or '-'} |")
+
 
 if __name__ == "__main__":
     main()

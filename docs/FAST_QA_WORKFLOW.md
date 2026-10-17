@@ -46,7 +46,7 @@ Para eliminar tiempos muertos:
 - Mientras el agente interactivo valida en vivo con Puppeteer o prepara el cierre de la incidencia $AF_N$, se puede disparar un subagente de tipo `research` para auditar el código, commits y diffs de la siguiente incidencia $AF_{N+1}$.
 - **Frontera de Seguridad Concurrente (Aporte de Claude):**
   - El subagente opera en modo **estricta solo lectura** sobre el filesystem y git local.
-  - **Prohibido que los subagentes ejecuten mutaciones sobre Google Sheets o Notion en paralelo**, evitando colisiones de estado concurrente. Toda mutación se ejecuta secuencialmente en el hilo interactivo tras aprobación explícita del usuario.
+  - **Prohibido que los subagentes ejecuten mutaciones sobre Google Sheets en paralelo**, evitando colisiones de estado concurrente. Toda mutación se ejecuta secuencialmente en el hilo interactivo tras aprobación explícita del usuario.
 
 ---
 

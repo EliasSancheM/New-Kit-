@@ -6,6 +6,7 @@ import json
 import subprocess
 import urllib.request
 import urllib.error
+import urllib.parse
 import ssl
 import tempfile
 
@@ -103,7 +104,7 @@ def _apply_ca_bundle():
 _apply_ca_bundle()
 
 def get_product_repos() -> list[str]:
-    """Product repo folder names, relative to WORKSPACE_ROOT (QA_KIT_REPOS=a,b,c)."""
+    """Product repo folders, relative to WORKSPACE_ROOT (QA_KIT_REPOS=a,b,c; subfolders allowed: ia-factory/a)."""
     raw = _read_env_key("QA_KIT_REPOS")
     repos = [r.strip() for r in raw.split(",") if r.strip()] if raw else []
     return repos or DEFAULT_PRODUCT_REPOS
@@ -176,6 +177,9 @@ def iap_extra_args() -> list[str]:
     return []
 
 def _is_workspace_root(path: str) -> bool:
+    # The kit itself is never the workspace, even if an earlier run left a Reportes/ inside it.
+    if os.path.realpath(path) == os.path.realpath(PLUGIN_ROOT):
+        return False
     if os.path.exists(os.path.join(path, ".qa-kit-root")) or \
        os.path.exists(os.path.join(path, "MANIFIESTO_WORKSPACE.md")) or \
        os.path.exists(os.path.join(path, "Reportes")):
@@ -208,21 +212,27 @@ WORKSPACE_ROOT = detect_workspace_root()
 SPREADSHEET_ID = os.environ.get("SPREADSHEET_ID", "1Ddc43mRVFNtSCVNWwSxOi_IZZXHof_LJxel6qVqJlxM")
 SHEET_NAME = os.environ.get("SHEET_NAME", "Ai-Factory")
 REPORTS_DIR = os.path.join(WORKSPACE_ROOT, "Reportes")
-DEFAULT_PARENT_PAGE_ID = os.environ.get("NOTION_PARENT_PAGE_ID", "3b8f79fc-5514-80e3-bbe0-cb9cd1ee14cc")
-NOTION_PUBLIC_DOMAIN = "https://tungsten-holly-b01.notion.site/"
 CONFIG_FILE = os.path.join(UTILS_DIR, "config.json")
 ENV_FILE = os.path.join(WORKSPACE_ROOT, ".env")
 OBSIDIAN_VAULT_DIR = os.path.join(WORKSPACE_ROOT, "docs", "vault")
+# Google Sheets accepts 50,000 characters per cell. Full reports go in COMENTARIO QA.
+COMMENT_MAX_CHARS = 45000
+SEVERITIES = {"critica": "Critica", "crítica": "Critica", "alta": "Alta", "media": "Media", "baja": "Baja"}
 
-_NOTION_ID_RE = re.compile(r"([0-9a-fA-F]{32})(?:[?#/]|$)")
-_DASHED_UUID_RE = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
-_LEVEL2_SUFFIXES = (
-    "_tecnico",
-    "_rechazo_qa",
-    "_exito_qa",
-    "_reporte_exito_qa",
-    "_reporte_rechazo_qa",
-)
+
+def normalize_severity(value: str) -> str:
+    """'Crítica' -> 'Critica' (the sheet's spelling). Raises ValueError for anything else."""
+    key = (value or "").strip().lower()
+    if key not in SEVERITIES:
+        raise ValueError(f"Gravedad '{value}' no válida. Usa Critica, Alta, Media o Baja.")
+    return SEVERITIES[key]
+
+
+def truncate_comment(text: str) -> str:
+    if len(text) <= COMMENT_MAX_CHARS:
+        return text
+    mark = "\n\n[... recortado: el reporte completo está en el archivo local de Reportes/]"
+    return text[:COMMENT_MAX_CHARS - len(mark)] + mark
 
 # ---------------------------------------------------------------------------
 # Publish gate: a real write needs the code printed by the matching --dry-run.
@@ -296,34 +306,22 @@ def running_under_agent() -> str:
 
 
 def _read_console_line(prompt: str, timeout: int = HUMAN_GATE_TIMEOUT_S) -> str:
-    """Reads one line from the real console (not from piped stdin). Returns '' on timeout."""
-    import time
-    if os.name == "nt":
-        import msvcrt
-        sys.stderr.write(prompt)
-        sys.stderr.flush()
-        chars, deadline = [], time.time() + timeout
-        while time.time() < deadline:
-            if msvcrt.kbhit():
-                ch = msvcrt.getwch()
-                if ch in ("\r", "\n"):
-                    sys.stderr.write("\n")
-                    return "".join(chars).strip()
-                if ch == "\b":
-                    chars = chars[:-1]
-                    continue
-                chars.append(ch)
-                sys.stderr.write(ch)
-                sys.stderr.flush()
-            else:
-                time.sleep(0.05)
-        return ""
-    import select
-    with open("/dev/tty", "r+", encoding="utf-8", errors="replace") as tty:
-        tty.write(prompt)
-        tty.flush()
-        ready, _, _ = select.select([tty], [], [], timeout)
-        return tty.readline().strip() if ready else ""
+    """Reads one line with input() (works in every console, including Windows Terminal,
+    PowerShell, CMD and Git Bash). The timeout runs in a thread so an unattended console
+    does not hang forever. Returns '' on timeout or EOF."""
+    import threading
+    got = []
+
+    def ask():
+        try:
+            got.append(input(prompt))
+        except (EOFError, KeyboardInterrupt, OSError):
+            got.append("")
+
+    t = threading.Thread(target=ask, daemon=True)
+    t.start()
+    t.join(timeout)
+    return got[0].strip() if got else ""
 
 
 def log_publication(action: str, defect_id: str, detail: str = "") -> None:
@@ -355,39 +353,14 @@ def require_human_confirmation(action: str, defect_id: str, summary: list) -> No
               file=sys.stderr)
         sys.exit(HUMAN_GATE_EXIT_CODE)
     lines = [f"\n=== Confirmación humana: {action} ==="] + [f"  {s}" for s in summary] + [""]
-    try:
-        typed = _read_console_line("\n".join(lines) + f"Escribe {defect_id} para confirmar (Enter vacío cancela): ")
-    except OSError:
-        print("[REQUIERE A UNA PERSONA] No se pudo abrir la terminal para confirmar.", file=sys.stderr)
-        sys.exit(HUMAN_GATE_EXIT_CODE)
+    print("\n".join(lines))
+    typed = _read_console_line(f"Escribe {defect_id} para confirmar (Enter vacío cancela): ")
     if typed.strip().upper() != defect_id.strip().upper():
         print(f"Cancelado: no se escribió el ID correcto (o pasaron {HUMAN_GATE_TIMEOUT_S} s). No se publicó nada.",
               file=sys.stderr)
         sys.exit(HUMAN_GATE_EXIT_CODE)
     log_publication(action, defect_id, " | ".join(s for s in summary if s)[:300])
 
-
-def to_dashed_uuid(raw: str) -> str:
-    h = (raw or "").replace("-", "").strip().lower()
-    if len(h) != 32:
-        return raw or ""
-    return f"{h[0:8]}-{h[8:12]}-{h[12:16]}-{h[16:20]}-{h[20:32]}"
-
-def notion_public_url(app_url: str) -> str:
-    return (
-        (app_url or "")
-        .replace("https://app.notion.com/p/", NOTION_PUBLIC_DOMAIN)
-        .replace("https://www.notion.so/", NOTION_PUBLIC_DOMAIN)
-    )
-
-def extract_notion_page_id(text: str) -> str:
-    if not text:
-        return None
-    tail_ids = _NOTION_ID_RE.findall(text)
-    if tail_ids:
-        return to_dashed_uuid(tail_ids[-1])
-    dashed = _DASHED_UUID_RE.search(text)
-    return to_dashed_uuid(dashed.group(0)) if dashed else None
 
 def load_config():
     if os.path.exists(CONFIG_FILE):
@@ -463,7 +436,7 @@ def load_env_variables():
                     if line and not line.startswith("#") and "=" in line:
                         key, val = line.split("=", 1)
                         val_clean = val.strip().strip('"').strip("'")
-                        if not val_clean.startswith("ntn_your_") and not val_clean.startswith("your_"):
+                        if val_clean and not val_clean.startswith("your_") and not val_clean.startswith("ya29.pega"):
                             os.environ[key.strip()] = val_clean
 
 def append_to_env(key: str, value: str):
@@ -472,110 +445,158 @@ def append_to_env(key: str, value: str):
         f.write(f"\n{key}={value}\n")
     os.environ[key] = value
 
-def get_notion_token():
-    load_env_variables()
-    token = os.environ.get("NOTION_TOKEN") or os.environ.get("NOTION_API_KEY")
-    if not token:
-        if not sys.stdin.isatty():
-            return None
-        print("\n--- Configuración de API de Notion ---")
-        token = input("Ingresa el token de integración de Notion (ntn_...): ").strip()
-        if token:
-            append_to_env("NOTION_TOKEN", token)
+# ---------------------------------------------------------------------------
+# Google Sheets access token. Sources, in order:
+#   1. SHEETS_ACCESS_TOKEN in the environment or .env: a token pasted from the
+#      Google OAuth Playground (scope spreadsheets). Lasts 60 minutes; when it
+#      expires the person pastes a new one. Nothing renews it automatically.
+#   2. SHEETS_CLIENT_ID + SHEETS_CLIENT_SECRET + SHEETS_REFRESH_TOKEN: an OAuth
+#      client of your own; the kit renews the access token by itself.
+#   3. gcloud auth print-access-token (needs `gcloud auth login --enable-gdrive-access`).
+# GCLOUD_ACCESS_TOKEN is accepted as an alias of SHEETS_ACCESS_TOKEN.
+# ---------------------------------------------------------------------------
+SHEETS_AUTH_EXIT_CODE = 6
+SHEETS_TOKEN_HELP = (
+    "Pega un token nuevo en el .env del workspace como SHEETS_ACCESS_TOKEN=ya29... "
+    "(Google OAuth Playground, scope https://www.googleapis.com/auth/spreadsheets; dura 60 minutos). "
+    "Alternativas: SHEETS_CLIENT_ID/SHEETS_CLIENT_SECRET/SHEETS_REFRESH_TOKEN para renovación automática, "
+    "o una sesión de gcloud (gcloud auth login --enable-gdrive-access)."
+)
+
+
+class SheetsAuthError(RuntimeError):
+    """No usable token for Google Sheets (missing or expired)."""
+
+
+_TOKEN = {"value": None, "source": None, "ts": 0}
+
+
+def _mem(token: str, source: str) -> str:
+    _TOKEN.update(value=token, source=source, ts=time.time())
     return token
 
-_GCLOUD_TOKEN_MEM_CACHE = {"token": None, "ts": 0}
-_COLUMN_MAPPING_CACHE = None
 
 def invalidate_gcloud_token():
     """Drops the in-memory and file token caches (e.g. after a 401)."""
-    _GCLOUD_TOKEN_MEM_CACHE["token"] = None
+    _TOKEN.update(value=None, source=None, ts=0)
     try:
         os.remove(get_token_cache_path())
     except OSError:
         pass
 
+
+def _refresh_with_oauth_client() -> str:
+    cid, secret, rtok = (_read_env_key(k) for k in ("SHEETS_CLIENT_ID", "SHEETS_CLIENT_SECRET", "SHEETS_REFRESH_TOKEN"))
+    if not (cid and secret and rtok):
+        return ""
+    body = urllib.parse.urlencode({"client_id": cid, "client_secret": secret, "refresh_token": rtok,
+                                   "grant_type": "refresh_token"}).encode("ascii")
+    req = urllib.request.Request("https://oauth2.googleapis.com/token", data=body,
+                                 headers={"Content-Type": "application/x-www-form-urlencoded"})
+    try:
+        with urllib.request.urlopen(req, context=get_ssl_context(), timeout=20) as resp:
+            return json.loads(resp.read().decode("utf-8")).get("access_token", "")
+    except Exception as e:
+        print(f"Warning: no se pudo renovar el token con SHEETS_REFRESH_TOKEN ({e})", file=sys.stderr)
+        return ""
+
+
+def _gcloud_access_token() -> str:
+    token_json_path = get_token_cache_path()
+    now = time.time()
+    if os.path.exists(token_json_path):
+        try:
+            if now - os.path.getmtime(token_json_path) < 2700:  # 45 minutes
+                with open(token_json_path, "r", encoding="utf-8") as f:
+                    tok = json.load(f).get("access_token")
+                if tok:
+                    return tok
+        except Exception:
+            pass
+    try:
+        out = subprocess.check_output(["gcloud", "auth", "print-access-token"], text=True, stderr=subprocess.PIPE,
+                                      shell=(sys.platform == "win32"), timeout=15).strip()
+    except Exception:
+        return ""
+    if not out or out.startswith("ERROR"):
+        return ""
+    try:
+        with open(token_json_path, "w", encoding="utf-8") as f:
+            json.dump({"access_token": out, "timestamp": now}, f)
+    except Exception:
+        pass
+    return out
+
+
+def get_sheets_token() -> str:
+    """Access token for the Sheets API. Raises SheetsAuthError when no source works."""
+    if _TOKEN["value"] and time.time() - _TOKEN["ts"] < 1800:
+        return _TOKEN["value"]
+    pasted = _read_env_key("SHEETS_ACCESS_TOKEN") or _read_env_key("GCLOUD_ACCESS_TOKEN")
+    if pasted:
+        return _mem(pasted, "pegado")
+    refreshed = _refresh_with_oauth_client()
+    if refreshed:
+        return _mem(refreshed, "refresh")
+    tok = _gcloud_access_token()
+    if tok:
+        return _mem(tok, "gcloud")
+    raise SheetsAuthError("Sin token para Google Sheets. " + SHEETS_TOKEN_HELP)
+
+
+get_gcloud_token = get_sheets_token  # legacy name
+
+
+def sheets_token_source() -> str:
+    """'pegado', 'refresh', 'gcloud' or '' when nothing works. Never raises."""
+    try:
+        get_sheets_token()
+        return _TOKEN["source"] or ""
+    except SheetsAuthError:
+        return ""
+
+
 def google_urlopen(req: urllib.request.Request, timeout: int = 20):
-    """urlopen for Google APIs: on 401 the cached token is stale/revoked, so it
-    invalidates the cache, fetches a fresh gcloud token and retries once."""
+    """urlopen for the Sheets API. On 401: a pasted token is simply expired (the person
+    must paste a new one); the other sources are refreshed once and the call retried."""
     try:
         return urllib.request.urlopen(req, context=get_ssl_context(), timeout=timeout)
     except urllib.error.HTTPError as e:
-        if e.code != 401 or os.environ.get("GCLOUD_ACCESS_TOKEN"):
+        if e.code != 401:
             raise
+        if _TOKEN["source"] == "pegado":
+            raise SheetsAuthError("Google respondió 401: el SHEETS_ACCESS_TOKEN pegado venció o no vale para esta "
+                                  "planilla. " + SHEETS_TOKEN_HELP) from None
         invalidate_gcloud_token()
-        fresh = get_gcloud_token()
-        if not fresh:
-            raise
-        req.add_header("Authorization", f"Bearer {fresh}")
+        req.add_header("Authorization", f"Bearer {get_sheets_token()}")
         return urllib.request.urlopen(req, context=get_ssl_context(), timeout=timeout)
 
-def get_gcloud_token() -> str:
-    # 0. In-memory cache (30 min TTL)
-    now = time.time()
-    if _GCLOUD_TOKEN_MEM_CACHE["token"] and (now - _GCLOUD_TOKEN_MEM_CACHE["ts"] < 1800):
-        return _GCLOUD_TOKEN_MEM_CACHE["token"]
 
-    # 1. Direct env variable
-    if os.environ.get("GCLOUD_ACCESS_TOKEN"):
-        _GCLOUD_TOKEN_MEM_CACHE["token"] = os.environ.get("GCLOUD_ACCESS_TOKEN")
-        _GCLOUD_TOKEN_MEM_CACHE["ts"] = now
-        return _GCLOUD_TOKEN_MEM_CACHE["token"]
-
-    # 2. User cache gcloud_token.json (outside repository, TTL < 45 min)
-    token_json_path = get_token_cache_path()
-    if os.path.exists(token_json_path):
+def exit_on_auth_error(fn):
+    """Decorator for CLI mains: prints the Sheets auth problem and exits with code 6."""
+    def wrapper(*a, **kw):
         try:
-            mtime = os.path.getmtime(token_json_path)
-            if now - mtime < 2700:  # 45 minutes
-                with open(token_json_path, "r", encoding="utf-8") as f:
-                    tdata = json.load(f)
-                    if "access_token" in tdata and tdata["access_token"]:
-                        tok = tdata["access_token"]
-                        _GCLOUD_TOKEN_MEM_CACHE["token"] = tok
-                        _GCLOUD_TOKEN_MEM_CACHE["ts"] = now
-                        return tok
-        except Exception:
-            pass
+            return fn(*a, **kw)
+        except SheetsAuthError as e:
+            print(f"[SIN TOKEN DE SHEETS] {e}", file=sys.stderr)
+            sys.exit(SHEETS_AUTH_EXIT_CODE)
+    return wrapper
 
-    # 3. gcloud CLI (cross-platform)
-    try:
-        cmd = ["gcloud", "auth", "print-access-token"]
-        out = subprocess.check_output(cmd, text=True, stderr=subprocess.PIPE, shell=(sys.platform == "win32"), timeout=15).strip()
-        if out and not out.startswith("ERROR"):
-            _GCLOUD_TOKEN_MEM_CACHE["token"] = out
-            _GCLOUD_TOKEN_MEM_CACHE["ts"] = now
-            # Save to secure cache outside repository
-            try:
-                with open(token_json_path, "w", encoding="utf-8") as f:
-                    json.dump({"access_token": out, "timestamp": now}, f)
-            except Exception:
-                pass
-            return out
-    except Exception:
-        pass
-        
-    if not sys.stdin.isatty():
-        raise RuntimeError("gcloud token no disponible en modo no interactivo. Ejecuta 'gcloud auth login'.")
-    
-    print("\n[!] No se detectó sesión activa de gcloud. Ejecuta: gcloud auth login --enable-gdrive-access")
-    return None
+
+_COLUMN_MAPPING_CACHE = None
 
 def get_column_mapping() -> dict[str, str]:
     global _COLUMN_MAPPING_CACHE
     if _COLUMN_MAPPING_CACHE:
         return _COLUMN_MAPPING_CACHE
 
-    token = get_gcloud_token()
+    token = get_sheets_token()
     mapping = {
         "id": "A", "nombre": "B", "agrupacion": "C", "responsable": "D", "gravedad": "E",
         "descripcion": "F", "reportada_por": "G", "fecha_inicio": "H",
         "estado": "I", "fecha_termino": "J", "cerrada_por": "K",
         "commits": "L", "id_commits": "M", "comentario_dev": "N", "comentario_qa": "O"
     }
-    if not token:
-        _COLUMN_MAPPING_CACHE = mapping
-        return mapping
 
     url = f"https://sheets.googleapis.com/v4/spreadsheets/{SPREADSHEET_ID}/values/{SHEET_NAME}!A1:Z1"
     req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
@@ -601,21 +622,20 @@ def get_column_mapping() -> dict[str, str]:
                 elif "ID COMMITS" in h_norm: mapping["id_commits"] = col_letter
                 elif "COMENTARIO DEV" in h_norm: mapping["comentario_dev"] = col_letter
                 elif "COMENTARIO QA" in h_norm or "NOTION" in h_norm: mapping["comentario_qa"] = col_letter
+    except SheetsAuthError:
+        raise
     except Exception as e:
         print(f"Warning: Fallback a mapeo por defecto de columnas ({e})", file=sys.stderr)
-        
+
     _COLUMN_MAPPING_CACHE = mapping
     return mapping
 
 def list_defects_from_sheets(status_filter: list[str] = None, limit: int = None) -> list[dict]:
     """
     Queries Google Sheets directly and returns structured defect objects.
-    status_filter: list of strings (e.g. ['Pendiente', 'En Revisión', 'Reportada'])
+    status_filter: list of strings (e.g. ['Reportada', 'En Revisión'])
     """
-    token = get_gcloud_token()
-    if not token:
-        return []
-
+    token = get_sheets_token()
     mapping = get_column_mapping()
     url = f"https://sheets.googleapis.com/v4/spreadsheets/{SPREADSHEET_ID}/values/{SHEET_NAME}!A2:Z"
     req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
@@ -625,7 +645,7 @@ def list_defects_from_sheets(status_filter: list[str] = None, limit: int = None)
         with google_urlopen(req, timeout=20) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             rows = data.get("values", [])
-            
+
             # Map column letters to 0-indexed column offsets
             def col_idx(col_name):
                 letter = mapping.get(col_name, "A")
@@ -657,6 +677,8 @@ def list_defects_from_sheets(status_filter: list[str] = None, limit: int = None)
                     "reportada_por": get_val("reportada_por"),
                     "fecha_inicio": get_val("fecha_inicio"),
                     "estado": estado if estado else "Reportada",
+                    "fecha_termino": get_val("fecha_termino"),
+                    "cerrada_por": get_val("cerrada_por"),
                     "commits": get_val("commits"),
                     "id_commits": get_val("id_commits"),
                     "comentario_dev": get_val("comentario_dev"),
@@ -665,204 +687,12 @@ def list_defects_from_sheets(status_filter: list[str] = None, limit: int = None)
                 results.append(item)
                 if limit and len(results) >= limit:
                     break
+    except SheetsAuthError:
+        raise
     except Exception as e:
         print(f"Error consultando defectos en Google Sheets: {e}", file=sys.stderr)
 
     return results
-
-def call_notion_mcp(operation: str, payload: dict) -> dict:
-    notion_token = get_notion_token()
-    if not notion_token:
-        return None
-
-    env = os.environ.copy()
-    env["NOTION_TOKEN"] = notion_token
-    env["NOTION_API_KEY"] = notion_token
-    if os.environ.get("QA_KIT_INSECURE_TLS", "0") == "1":
-        env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0"
-    
-    # 1. Try MCP via npx notion-mcp-server
-    try:
-        proc = subprocess.Popen(
-            ["npx", "-y", "notion-mcp-server"],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            env=env,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            shell=(sys.platform == "win32")
-        )
-        init_req = {
-            "jsonrpc": "2.0", "id": 1, "method": "initialize",
-            "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "qa-kit", "version": "1.0.0"}}
-        }
-        tool_name = "notion_write" if operation in ("create_page", "append_blocks", "update_page", "archive_page") else "notion_read"
-        call_req = {
-            "jsonrpc": "2.0", "id": 2, "method": "tools/call",
-            "params": {"name": tool_name, "arguments": {"operation": operation, "payload": payload}}
-        }
-        input_str = json.dumps(init_req) + "\n" + json.dumps(call_req) + "\n"
-        stdout, _ = proc.communicate(input=input_str, timeout=12)
-        for line in stdout.strip().split("\n"):
-            try:
-                data = json.loads(line)
-                if data.get("id") == 2 and "result" in data:
-                    content_text = data["result"]["content"][0]["text"]
-                    res_obj = json.loads(content_text)
-                    if res_obj.get("ok"):
-                        return res_obj["data"]
-            except Exception:
-                pass
-    except Exception:
-        pass
-
-    # 2. Robust REST API Fallback
-    if operation == "create_page":
-        try:
-            parent_info = payload.get("parent", {})
-            p_id = parent_info.get("page_id")
-            title_text = payload.get("title", "Reporte QA")
-            md_content = payload.get("markdown", "")
-            
-            def parse_rich_text(raw_text: str) -> list[dict]:
-                parts = []
-                token_re = re.compile(r'(\*\*[^*]+\*\*|`[^`]+`)')
-                tokens = token_re.split(raw_text)
-                for t in tokens:
-                    if not t: continue
-                    is_bold = t.startswith("**") and t.endswith("**") and len(t) >= 4
-                    is_code = t.startswith("`") and t.endswith("`") and len(t) >= 2
-                    core_text = t[2:-2] if is_bold else (t[1:-1] if is_code else t)
-                    
-                    # Notion max 2000 chars per rich_text item: chunk without data loss
-                    for chunk in [core_text[i:i+2000] for i in range(0, len(core_text), 2000)]:
-                        item = {"type": "text", "text": {"content": chunk}}
-                        if is_bold:
-                            item["annotations"] = {"bold": True}
-                        elif is_code:
-                            item["annotations"] = {"code": True}
-                        parts.append(item)
-                return parts if parts else [{"type": "text", "text": {"content": raw_text[:2000]}}]
-
-            blocks = []
-            lines = md_content.strip().split("\n")
-            in_code_block = False
-            code_lines = []
-            code_lang = "plain text"
-
-            for l in lines:
-                l_str = l.strip()
-                # Handle Code Blocks
-                if l_str.startswith("```"):
-                    if not in_code_block:
-                        in_code_block = True
-                        code_lang = l_str[3:].strip() or "python"
-                        code_lines = []
-                    else:
-                        in_code_block = False
-                        code_content = "\n".join(code_lines)
-                        # Chunk code blocks if exceeding 2000 chars to avoid loss
-                        for c_chunk in [code_content[i:i+2000] for i in range(0, len(code_content), 2000)]:
-                            blocks.append({
-                                "object": "block",
-                                "type": "code",
-                                "code": {
-                                    "rich_text": [{"type": "text", "text": {"content": c_chunk}}],
-                                    "language": code_lang.lower() if code_lang.lower() in ("python", "bash", "javascript", "typescript", "json", "sql", "markdown") else "plain text"
-                                }
-                            })
-                    continue
-
-                if in_code_block:
-                    code_lines.append(l)
-                    continue
-
-                if not l_str:
-                    continue
-
-                # Headings
-                if l_str.startswith("# "):
-                    blocks.append({"object": "block", "type": "heading_1", "heading_1": {"rich_text": parse_rich_text(l_str[2:])}})
-                elif l_str.startswith("## "):
-                    blocks.append({"object": "block", "type": "heading_2", "heading_2": {"rich_text": parse_rich_text(l_str[3:])}})
-                elif l_str.startswith("### "):
-                    blocks.append({"object": "block", "type": "heading_3", "heading_3": {"rich_text": parse_rich_text(l_str[4:])}})
-                # Divider
-                elif l_str == "---":
-                    blocks.append({"object": "block", "type": "divider", "divider": {}})
-                # Bulleted List
-                elif l_str.startswith("- ") or l_str.startswith("* "):
-                    blocks.append({"object": "block", "type": "bulleted_list_item", "bulleted_list_item": {"rich_text": parse_rich_text(l_str[2:])}})
-                # Numbered List
-                elif re.match(r"^\d+\.\s+", l_str):
-                    item_text = re.sub(r"^\d+\.\s+", "", l_str)
-                    blocks.append({"object": "block", "type": "numbered_list_item", "numbered_list_item": {"rich_text": parse_rich_text(item_text)}})
-                # Callout / Quote / Warning
-                elif l_str.startswith("> "):
-                    callout_text = l_str[2:]
-                    is_warning = "ADVERTENCIA" in callout_text or "⚠️" in callout_text
-                    icon_emoji = "⚠️" if is_warning else "💡"
-                    blocks.append({
-                        "object": "block",
-                        "type": "callout",
-                        "callout": {
-                            "rich_text": parse_rich_text(callout_text),
-                            "icon": {"type": "emoji", "emoji": icon_emoji}
-                        }
-                    })
-                # Paragraph
-                else:
-                    blocks.append({"object": "block", "type": "paragraph", "paragraph": {"rich_text": parse_rich_text(l_str)}})
-
-            body = {
-                "parent": {"page_id": p_id},
-                "properties": {"title": {"title": [{"type": "text", "text": {"content": title_text}}]}},
-                "children": blocks[:100]
-            }
-            req = urllib.request.Request(
-                "https://api.notion.com/v1/pages",
-                data=json.dumps(body).encode("utf-8"),
-                headers={"Authorization": f"Bearer {notion_token}", "Notion-Version": "2022-06-28", "Content-Type": "application/json"}
-            )
-            ctx = get_ssl_context()
-            created_page = None
-            try:
-                with urllib.request.urlopen(req, context=ctx) as resp:
-                    created_page = json.loads(resp.read().decode("utf-8"))
-            except Exception as create_err:
-                print(f"Error creando página inicial en Notion REST API: {create_err}", file=sys.stderr)
-                return None
-
-            # Lossless Pagination: Append remaining blocks in chunks of 100 with retry/backoff
-            if len(blocks) > 100 and created_page and "id" in created_page:
-                page_id_created = created_page["id"]
-                for start_idx in range(100, len(blocks), 100):
-                    batch = blocks[start_idx:start_idx+100]
-                    patch_body = {"children": batch}
-                    patch_req = urllib.request.Request(
-                        f"https://api.notion.com/v1/blocks/{page_id_created}/children",
-                        data=json.dumps(patch_body).encode("utf-8"),
-                        headers={"Authorization": f"Bearer {notion_token}", "Notion-Version": "2022-06-28", "Content-Type": "application/json"},
-                        method="PATCH"
-                    )
-                    for attempt in range(3):
-                        try:
-                            with urllib.request.urlopen(patch_req, context=ctx) as p_resp:
-                                p_resp.read()
-                            break
-                        except Exception as patch_err:
-                            if attempt < 2:
-                                time.sleep(1.5 * (attempt + 1))
-                            else:
-                                print(f"Warning: Fallo al añadir lote {start_idx}..{start_idx+100} a la página {page_id_created}: {patch_err}", file=sys.stderr)
-
-            return created_page
-        except Exception as rest_err:
-            print(f"Error en fallback REST de Notion: {rest_err}", file=sys.stderr)
-
-    return None
 
 def obsidian_enabled() -> bool:
     """The local Obsidian mirror is opt-in (QA_KIT_OBSIDIAN=1) so the kit never
@@ -871,9 +701,8 @@ def obsidian_enabled() -> bool:
 
 def ensure_obsidian_vault():
     os.makedirs(os.path.join(OBSIDIAN_VAULT_DIR, "defectos"), exist_ok=True)
-    os.makedirs(os.path.join(OBSIDIAN_VAULT_DIR, "reportes"), exist_ok=True)
 
-def sync_obsidian_note(defect_id: str, title: str, status: str, severity: str, level1_url: str, subpage_url: str, evidence: str = "", tech_details: str = ""):
+def sync_obsidian_note(defect_id: str, title: str, status: str, severity: str, evidence: str = "", tech_details: str = ""):
     """One-way local mirror of a defect (docs/vault/defectos/AF-XXX.md). Nothing
     reads it back. Each call rewrites the whole note. No-op unless opted in."""
     if not obsidian_enabled():
@@ -885,8 +714,6 @@ id: {defect_id}
 title: "{title}"
 status: "{status}"
 severity: "{severity}"
-level1_url: "{level1_url}"
-subpage_url: "{subpage_url}"
 last_tested: "{os.environ.get('QA_TEST_DATE') or time.strftime('%Y-%m-%d')}"
 tags:
   - qa/defect
@@ -896,9 +723,7 @@ tags:
 
 # {defect_id}: {title}
 
-**Estado QA:** `{status}` | **Severidad:** `{severity}`  
-**Enlace Notion Principal:** [{defect_id} en Notion]({level1_url})  
-**Subpágina de Reporte:** [Subpágina QA]({subpage_url})  
+**Estado QA:** `{status}` | **Severidad:** `{severity}`
 
 ---
 
@@ -908,88 +733,13 @@ tags:
 ---
 
 ## 🛠️ Diagnóstico y Resolución Técnica
-{tech_details if tech_details else "Documentado en la subpágina correspondiente de Notion."}
+{tech_details if tech_details else "Documentado en Comentario QA de la planilla."}
 """
     with open(note_path, "w", encoding="utf-8") as f:
         f.write(frontmatter)
 
-def _title_matches_defect(title: str, defect_id: str) -> bool:
-    title = title or ""
-    if not (title == defect_id or title.startswith(defect_id + "_")):
-        return False
-    if title.startswith(defect_id + "_ampliacion_"):  # qa-amplify subpages: AF-XXX_ampliacion_<origen>
-        return False
-    return not any(title.endswith(sfx) for sfx in _LEVEL2_SUFFIXES)
-
-def resolve_level1_via_parent_chain(page_id: str, max_depth: int = 6) -> tuple[str, str]:
-    seen = set()
-    current = to_dashed_uuid(page_id)
-    for _ in range(max_depth):
-        if not current or current in seen: break
-        seen.add(current)
-        page = call_notion_mcp("get_page", {"page_id": current})
-        if not page or not isinstance(page, dict): break
-        parent_id = to_dashed_uuid((page.get("parent") or {}).get("page_id", ""))
-        if parent_id == DEFAULT_PARENT_PAGE_ID:
-            return page["id"], notion_public_url(page.get("url", ""))
-        current = parent_id
-    return None, None
-
-def resolve_level1_from_sheet(defect_id: str) -> tuple[str, str]:
-    try:
-        row_idx = find_sheet_row_for_defect(defect_id)
-        if not row_idx: return None, None
-        col = get_column_mapping().get("comentario_qa", "O")
-        token = get_gcloud_token()
-        url = f"https://sheets.googleapis.com/v4/spreadsheets/{SPREADSHEET_ID}/values/{SHEET_NAME}!{col}{row_idx}"
-        req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
-        with google_urlopen(req, timeout=20) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-        values = data.get("values", [])
-        cell = values[0][0] if values and values[0] else ""
-        page_id = extract_notion_page_id(cell)
-        if not page_id: return None, None
-        l1_id, l1_url = resolve_level1_via_parent_chain(page_id)
-        if not l1_id: return None, None
-        page = call_notion_mcp("get_page", {"page_id": l1_id})
-        title = (page or {}).get("title", "") if isinstance(page, dict) else ""
-        if not _title_matches_defect(title, defect_id):
-            return None, None
-        return l1_id, l1_url
-    except Exception:
-        return None, None
-
-def find_notion_level1_page_id(defect_id: str) -> tuple[str, str]:
-    res = call_notion_mcp(
-        "search_pages",
-        {"query": defect_id, "paginate": True, "page_limit": 8, "page_size": 100},
-    )
-    results = res.get("results", []) if isinstance(res, dict) else []
-
-    matches = []
-    for p in results:
-        if not _title_matches_defect(p.get("title", ""), defect_id):
-            continue
-        parent_id = to_dashed_uuid((p.get("parent") or {}).get("page_id", ""))
-        if parent_id != DEFAULT_PARENT_PAGE_ID:
-            continue
-        matches.append(p)
-
-    if not matches:
-        return None, None
-    if len(matches) > 1:
-        print(
-            f"Warning: {len(matches)} candidate Level-1 Notion pages for {defect_id} "
-            f"({[m.get('title') for m in matches]}). Using the first; pass "
-            f"level1_page_id explicitly to disambiguate.",
-            file=sys.stderr,
-        )
-    p = matches[0]
-    return p["id"], notion_public_url(p.get("url", ""))
-
 def find_sheet_row_for_defect(defect_id: str) -> int:
-    token = get_gcloud_token()
-    if not token: return None
+    token = get_sheets_token()
     mapping = get_column_mapping()
     id_col = mapping.get("id", "A")
     url = f"https://sheets.googleapis.com/v4/spreadsheets/{SPREADSHEET_ID}/values/{SHEET_NAME}!{id_col}:{id_col}"
@@ -1001,14 +751,16 @@ def find_sheet_row_for_defect(defect_id: str) -> int:
             for r_idx, row in enumerate(values):
                 if row and row[0].strip() == defect_id:
                     return r_idx + 1
+    except SheetsAuthError:
+        raise
     except Exception as e:
         print(f"Error buscando fila de {defect_id}: {e}", file=sys.stderr)
     return None
 
 def get_sheet_cell(row_idx: int, key: str) -> str:
     """Reads one mapped column (e.g. 'gravedad') of a sheet row. Returns '' on failure."""
-    token = get_gcloud_token()
-    if not token or not row_idx:
+    token = get_sheets_token()
+    if not row_idx:
         return ""
     col = get_column_mapping().get(key)
     if not col:
@@ -1019,13 +771,14 @@ def get_sheet_cell(row_idx: int, key: str) -> str:
         with google_urlopen(req, timeout=20) as resp:
             values = json.loads(resp.read().decode("utf-8")).get("values", [])
         return values[0][0].strip() if values and values[0] else ""
+    except SheetsAuthError:
+        raise
     except Exception as e:
         print(f"Warning: no se pudo leer {key} de la fila {row_idx} ({e})", file=sys.stderr)
         return ""
 
 def batch_update_sheet_row(row_idx: int, updates: dict):
-    token = get_gcloud_token()
-    if not token: return
+    token = get_sheets_token()
     mapping = get_column_mapping()
     data_payload = []
     for key, val in updates.items():
@@ -1048,92 +801,40 @@ def batch_update_sheet_row(row_idx: int, updates: dict):
 
 def publish_qa_outcome(
     defect_id: str,
-    page_suffix: str,
-    content: str,
     status: str,
-    severity: str | None,
-    summary_or_reason: str,
-    comment_label: str,
-    evidence: str,
-    tech_details: str,
-    level1_page_id: str = None,
+    summary: str,
+    report_text: str,
+    evidence: str = "",
+    tech_details: str = "",
     dry_run: bool = False,
 ) -> dict:
-    """Publishes a QA outcome subpage and updates Sheets + Obsidian.
-    Never creates a new Level-1 page: closing/rejecting a defect that has no
-    Level-1 page would create a duplicate, so it aborts instead.
-    Returns None on failure; the result carries 'sheet_updated'."""
+    """Closes or rejects a defect in the sheet: ESTADO, FECHA TERMINO, CERRADA POR and the
+    full report in COMENTARIO QA. Returns None if the defect is not in the sheet.
+    With dry_run it only resolves the row and returns what would be written."""
+    import datetime
     user_name = get_user_name()
-    p1_id, p1_url = level1_page_id, None
-    if not p1_id:
-        p1_id, p1_url = resolve_level1_from_sheet(defect_id)
-    if not p1_id:
-        p1_id, p1_url = find_notion_level1_page_id(defect_id)
-
-    if not p1_id:
-        print(
-            f"Error: No se encontró la página Nivel 1 de Notion para {defect_id}. "
-            f"No se crea una nueva para evitar duplicados; pásala explícitamente como level1_page_id.",
-            file=sys.stderr,
-        )
-        return None
-
     row_idx = find_sheet_row_for_defect(defect_id)
-    # Severity always comes from the sheet (the defect's real GRAVEDAD), never a fixed value
-    if not severity:
-        severity = get_sheet_cell(row_idx, "gravedad") or "Sin gravedad"
+    if not row_idx:
+        print(f"Error: {defect_id} no está en Google Sheets; no se escribe nada.", file=sys.stderr)
+        return None
+    severity = get_sheet_cell(row_idx, "gravedad") or "Sin gravedad"
+    current_status = get_sheet_cell(row_idx, "estado")
+    today = datetime.date.today().strftime("%Y-%m-%d")
+    comment = truncate_comment(report_text) if report_text else f"{summary}\n<reporte completo>"
+    updates = {"estado": status, "fecha_termino": today, "cerrada_por": user_name, "comentario_qa": comment}
     if dry_run:
         return {
             "dry_run": True,
             "defect_id": defect_id,
-            "level1_page_id": p1_id,
-            "notion_subpage_title": f"{defect_id}_{page_suffix}",
             "sheet_row": row_idx,
+            "estado_actual": current_status,
             "gravedad": severity,
             "obsidian_note": os.path.join(OBSIDIAN_VAULT_DIR, "defectos", f"{defect_id}.md") if obsidian_enabled() else None,
-            "sheet_updates": {
-                "estado": status,
-                "cerrada_por": user_name,
-                "comentario_qa": f"{summary_or_reason}. {comment_label}:\n<url de la subpágina>",
-            },
+            "sheet_updates": updates,
         }
 
-    clean_md = re.sub(r'\[([^\]]+)\]\(file:///[^\)]+\)', r'`\1`', content)
-    page = call_notion_mcp("create_page", {
-        "parent": {"type": "page_id", "page_id": p1_id},
-        "title": f"{defect_id}_{page_suffix}",
-        "markdown": clean_md
-    })
-    if not page:
-        print(f"Error al subir subpágina {page_suffix} a Notion", file=sys.stderr)
-        return None
-
-    pub_url = page.get("url", "").replace("https://app.notion.com/p/", NOTION_PUBLIC_DOMAIN)
-    print(f"Subpágina publicada en Notion: {pub_url}")
-
-    sheet_updated = False
-    try:
-        if row_idx:
-            batch_update_sheet_row(row_idx, {
-                "estado": status,
-                "cerrada_por": user_name,
-                "comentario_qa": f"{summary_or_reason}. {comment_label}:\n{pub_url}"
-            })
-            sheet_updated = True
-        else:
-            print(f"Error: {defect_id} no está en Google Sheets; la hoja NO se actualizó.", file=sys.stderr)
-    except Exception as e:
-        print(f"Error al actualizar Google Sheets ({e}); la hoja NO se actualizó.", file=sys.stderr)
-
-    sync_obsidian_note(
-        defect_id=defect_id,
-        title=summary_or_reason,
-        status=status,
-        severity=severity,
-        level1_url=p1_url or pub_url,
-        subpage_url=pub_url,
-        evidence=evidence,
-        tech_details=tech_details
-    )
-
-    return {"defect_id": defect_id, "status": status, "notion_url": pub_url, "user_name": user_name, "sheet_updated": sheet_updated}
+    batch_update_sheet_row(row_idx, updates)
+    sync_obsidian_note(defect_id=defect_id, title=summary, status=status, severity=severity,
+                       evidence=evidence, tech_details=tech_details)
+    return {"defect_id": defect_id, "status": status, "sheet_row": row_idx, "estado_anterior": current_status,
+            "user_name": user_name, "sheet_updated": True}

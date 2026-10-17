@@ -19,7 +19,7 @@ CATALOG = {
         "scripts": {
             "welcome.py": {
                 "path": "skills/qa-welcome/scripts/welcome.py",
-                "purpose": "Verifica Python, Git, gcloud, Notion y presencia de los 4 repositorios.",
+                "purpose": "Verifica Python, Git, la fuente del token de Google Sheets y la presencia de los repos de producto.",
                 "flags": [
                     {"flag": "--json", "type": "boolean", "description": "Devuelve el estado del sistema en JSON estructurado para el agente."},
                     {"flag": "--help, -h", "type": "boolean", "description": "Muestra la ayuda básica del script."}
@@ -38,7 +38,7 @@ CATALOG = {
                 "path": "skills/qa-backlog/scripts/fetch_issues.py",
                 "purpose": "Lee la matriz online de Google Sheets en tiempo real.",
                 "flags": [
-                    {"flag": "--status", "type": "string", "default": "Pendiente,En Revisión,Reportada", "description": "Filtro por estados separados por coma (ej. 'En Revisión' o 'all')."},
+                    {"flag": "--status", "type": "string", "default": "Reportada,En Revisión,En curso", "description": "Filtro por estados separados por coma (ej. 'En Revisión' o 'all')."},
                     {"flag": "--id", "type": "string", "default": "None", "description": "Filtra por identificador exacto de defecto (ej. AF-228)."},
                     {"flag": "--responsable", "type": "string", "default": "None", "description": "Filtra por responsable: coincidencia parcial sin mayúsculas ni tildes, varias personas separadas por coma. Se aplica antes de --limit."},
                     {"flag": "--limit", "type": "integer", "default": 20, "description": "Límite máximo de incidencias a devolver."},
@@ -128,7 +128,7 @@ CATALOG = {
         "scripts": {
             "check_env.py": {
                 "path": "skills/qa-preflight/scripts/check_env.py",
-                "purpose": "Verifica en <500ms los puertos del túnel del entorno (Postgres, Qdrant, Redis, Prometheus...) y las credenciales de gcloud/Notion.",
+                "purpose": "Verifica en <500ms los puertos del túnel del entorno (Postgres, Qdrant, Redis, Prometheus...) y qué fuente da el token de Google Sheets.",
                 "flags": [
                     {"flag": "--env", "type": "string", "default": "QA_KIT_ENV o dev", "description": "Entorno de environments.json (dev, qa, team-devs...). Aplica su offset de puertos."},
                     {"flag": "--json", "type": "boolean", "description": "Entrega diagnósticos en JSON estructurado."}
@@ -183,26 +183,27 @@ CATALOG = {
         }
     },
     "report-bug": {
-        "description": "Reporte formal de nuevos defectos (Notion 2 niveles + Google Sheets online).",
+        "description": "Reporte formal de nuevos defectos en Google Sheets: fila nueva con el reporte ejecutivo y el técnico en Comentario QA.",
         "scripts": {
             "gsheets_updater.py": {
                 "path": "skills/report-bug/scripts/gsheets_updater.py",
-                "purpose": "Audita próximo ID disponible e inserta fila en Google Sheets.",
+                "purpose": "Lee título, gravedad y síntoma del reporte ejecutivo, pasa report_lint, audita el próximo ID e inserta la fila con ambos reportes en Comentario QA. Exige dry-run, --confirm, token de Sheets y confirmación de una persona en su terminal.",
                 "flags": [
                     {"flag": "--audit", "type": "boolean", "description": "Solo audita e imprime el próximo ID (AF-XXX) y fila destino sin escribir nada."},
                     {"flag": "--dry-run", "type": "boolean", "description": "Muestra qué se escribiría sin escribir nada e imprime confirm_code. Usarlo siempre antes de publicar."},
-                    {"flag": "--confirm <código>", "type": "string", "description": "Obligatorio para escribir: el confirm_code del dry-run del mismo contenido (la URL de Notion no forma parte del código). Sin él sale con código 4."},
-                    {"flag": "<nombre> <descripción> <gravedad> [notion_url]", "type": "positional", "description": "Parámetros posicionales para registrar el defecto."}
+                    {"flag": "--confirm <código>", "type": "string", "description": "Obligatorio para escribir: el confirm_code del dry-run de los mismos archivos. Sin él sale con código 4."},
+                    {"flag": "<ejecutivo.md> <tecnico.md>", "type": "positional", "description": "Los dos reportes escritos con las plantillas; el encabezado del ejecutivo debe ser '# AF-NNN — título' con el ID que devolvió --audit."},
+                    {"flag": "--gravedad <Critica|Alta|Media|Baja>", "type": "string", "description": "Sobrescribe la gravedad leída del reporte ejecutivo."}
                 ],
                 "examples": [
                     "python skills/report-bug/scripts/gsheets_updater.py --audit",
-                    "python skills/report-bug/scripts/gsheets_updater.py --dry-run \"Error en login SSO\" \"Fallo al validar token\" \"Alta\"",
-                    "python skills/report-bug/scripts/gsheets_updater.py --confirm 1a2b3c4d \"Error en login SSO\" \"Fallo al validar token\" \"Alta\" \"https://notion.so/...\""
+                    "python skills/report-bug/scripts/gsheets_updater.py --dry-run Reportes/AF-380_login_sso.md Reportes/AF-380_login_sso_tecnico.md",
+                    "python skills/report-bug/scripts/gsheets_updater.py --confirm 1a2b3c4d Reportes/AF-380_login_sso.md Reportes/AF-380_login_sso_tecnico.md"
                 ]
             },
             "report_lint.py": {
                 "path": "skills/report-bug/scripts/report_lint.py",
-                "purpose": "Revisa que el reporte ejecutivo y el técnico sigan las plantillas de report-bug (síntoma, impacto, pasos numerados, entorno y versión, evidencia, causa con archivo:línea o 'Causa no identificada', corrección). Solo lectura. notion_mcp_publisher.py lo ejecuta y no publica con errores.",
+                "purpose": "Revisa que el reporte ejecutivo y el técnico sigan las plantillas de report-bug (síntoma, impacto, pasos numerados, entorno y versión, evidencia, causa con archivo:línea o 'Causa no identificada', corrección). Solo lectura. gsheets_updater.py lo ejecuta y no publica con errores.",
                 "flags": [
                     {"flag": "<ejecutivo.md> [<tecnico.md>]", "type": "positional", "description": "Reportes a revisar; el que termina en _tecnico.md se revisa como técnico."},
                     {"flag": "--tecnico <archivo>", "type": "string", "description": "Revisa ese archivo como reporte técnico aunque no termine en _tecnico.md."},
@@ -210,19 +211,6 @@ CATALOG = {
                 ],
                 "examples": [
                     "python skills/report-bug/scripts/report_lint.py Reportes/AF-351_x.md Reportes/AF-351_x_tecnico.md"
-                ]
-            },
-            "notion_mcp_publisher.py": {
-                "path": "skills/report-bug/scripts/notion_mcp_publisher.py",
-                "purpose": "Publica reportes markdown en Notion con arquitectura anidada de 2 niveles.",
-                "flags": [
-                    {"flag": "--dry-run", "type": "boolean", "description": "Muestra qué se escribiría sin escribir nada e imprime confirm_code. Usarlo siempre antes de publicar."},
-                    {"flag": "--confirm <código>", "type": "string", "description": "Obligatorio para publicar. El código cubre el contenido de los dos archivos: si los editas después del dry-run, hay que repetirlo."},
-                    {"flag": "<file_l1> <file_l2> <defect_id> <short_name>", "type": "positional", "description": "Archivos markdown de nivel 1 y 2 para publicar."}
-                ],
-                "examples": [
-                    "python skills/report-bug/scripts/notion_mcp_publisher.py --dry-run Reportes/AF-229.md Reportes/AF-229_tecnico.md AF-229 sso_bug",
-                    "python skills/report-bug/scripts/notion_mcp_publisher.py --confirm 1a2b3c4d Reportes/AF-229.md Reportes/AF-229_tecnico.md AF-229 sso_bug"
                 ]
             }
         }
@@ -232,7 +220,7 @@ CATALOG = {
         "scripts": {
             "qa_finish_publisher.py": {
                 "path": "skills/qa-finish/scripts/qa_finish_publisher.py",
-                "purpose": "Genera reporte local de éxito, subpágina en Notion y actualiza Google Sheets a 'Finalizada'.",
+                "purpose": "Genera el reporte local de éxito y actualiza Google Sheets: ESTADO Finalizada, FECHA TERMINO, CERRADA POR y el reporte completo en COMENTARIO QA.",
                 "flags": [
                     {"flag": "--dry-run", "type": "boolean", "description": "Muestra qué se escribiría sin escribir nada e imprime confirm_code. Usarlo siempre antes de publicar."},
                     {"flag": "--build <commit|imagen>", "type": "string", "description": "Obligatorio. Versión que se probó y dónde; queda escrita en el reporte de éxito."},
@@ -240,8 +228,7 @@ CATALOG = {
                     {"flag": "<defect_id>", "type": "string", "description": "Identificador del issue (AF-XXX)."},
                     {"flag": "<resumen_validacion>", "type": "string", "description": "Resumen ejecutivo de la verificación exitosa."},
                     {"flag": "<detalle_pruebas_evidencia>", "type": "string", "description": "Pasos ejecutados, logs o evidencia de prueba."},
-                    {"flag": "<conclusion>", "type": "string", "description": "Obligatoria. Por qué se considera resuelto, con el resultado observado."},
-                    {"flag": "[level1_page_id]", "type": "string", "default": "Auto", "description": "ID de Notion padre si no se puede auto-resolver de Sheets."}
+                    {"flag": "<conclusion>", "type": "string", "description": "Obligatoria. Por qué se considera resuelto, con el resultado observado."}
                 ],
                 "examples": [
                     "python skills/qa-finish/scripts/qa_finish_publisher.py --dry-run --build \"ai-factory-frontend@9c1e2f0 en iafactory-qa\" \"AF-228\" \"SSO RBAC verificado sin fugas\" \"10 intentos con rol member bloqueados\" \"403 en los 10 intentos\"",
@@ -255,7 +242,7 @@ CATALOG = {
         "scripts": {
             "qa_rejection_publisher.py": {
                 "path": "skills/qa-rejection/scripts/qa_rejection_publisher.py",
-                "purpose": "Genera reporte de rechazo con AI Warning Banner, subpágina en Notion y marca 'Rechazada por QA' en Google Sheets.",
+                "purpose": "Genera el reporte de rechazo con AI Warning Banner y actualiza Google Sheets: ESTADO Rechazada por QA, FECHA TERMINO, CERRADA POR y el reporte completo en COMENTARIO QA.",
                 "flags": [
                     {"flag": "--dry-run", "type": "boolean", "description": "Muestra qué se escribiría sin escribir nada e imprime confirm_code. Usarlo siempre antes de publicar."},
                     {"flag": "--build <commit|imagen>", "type": "string", "description": "Obligatorio. Versión que se probó y dónde; queda escrita en el reporte de rechazo."},
@@ -263,8 +250,7 @@ CATALOG = {
                     {"flag": "<defect_id>", "type": "string", "description": "Identificador del issue (AF-XXX)."},
                     {"flag": "<motivo_rechazo>", "type": "string", "description": "Razón principal por la cual no se acepta el fix."},
                     {"flag": "<detalle_falla_empirica>", "type": "string", "description": "Evidencia de la replicación o error observado."},
-                    {"flag": "<cambios_encontrados_diff>", "type": "string", "description": "Análisis del código del desarrollador o causa raíz pendiente."},
-                    {"flag": "[level1_page_id]", "type": "string", "default": "Auto", "description": "ID de Notion padre si no se puede auto-resolver de Sheets."}
+                    {"flag": "<cambios_encontrados_diff>", "type": "string", "description": "Análisis del código del desarrollador o causa raíz pendiente."}
                 ],
                 "examples": [
                     "python skills/qa-rejection/scripts/qa_rejection_publisher.py --dry-run --build \"ai-factory-frontend@9c1e2f0 en iafactory-qa\" \"AF-228\" \"Falta limpieza de listener\" \"Memory leak al cerrar tab\" \"useEffect sin return cleanup\""
@@ -273,17 +259,15 @@ CATALOG = {
         }
     },
     "qa-amplify": {
-        "description": "Agrega evidencia a un defecto existente sin cambiar su estado (subpágina AF-XXX_ampliacion_<origen> en Notion).",
+        "description": "Agrega evidencia a un defecto existente sin cambiar su estado (bloque 'Ampliación (<origen>)' al final de Comentario QA).",
         "scripts": {
             "qa_amplify_publisher.py": {
                 "path": "skills/qa-amplify/scripts/qa_amplify_publisher.py",
-                "purpose": "Publica la evidencia bajo la página Nivel 1 del ticket, guarda copia en Reportes/ampliaciones/ y no toca el estado del Sheet. No duplica subpáginas con el mismo título.",
+                "purpose": "Agrega la evidencia al final de Comentario QA del ticket, guarda copia en Reportes/ampliaciones/ y no toca el estado. No duplica un origen ya agregado.",
                 "flags": [
                     {"flag": "<defect_id> <origen> <evidencia>", "type": "positional", "description": "Modo un ticket. La evidencia puede venir de --body-file."},
                     {"flag": "--file / --origin", "type": "string", "description": "Modo lote: archivo con secciones '## AF-XXX — título' separadas por '---'."},
                     {"flag": "--only", "type": "string", "description": "Con --file, solo estos IDs (separados por coma)."},
-                    {"flag": "--level1", "type": "string", "description": "ID de la página Nivel 1 si no se resuelve sola (modo un ticket)."},
-                    {"flag": "--link-in-sheet", "type": "boolean", "description": "Agrega la URL al final de COMENTARIO QA sin borrar lo existente. Apagado por defecto."},
                     {"flag": "--dry-run", "type": "boolean", "description": "Muestra destinos y contenido sin escribir nada e imprime confirm_code del lote. Usarlo siempre antes de publicar."},
                     {"flag": "--confirm <código>", "type": "string", "description": "Obligatorio para publicar: el confirm_code del dry-run del mismo lote. Sin él sale con código 4."}
                 ],

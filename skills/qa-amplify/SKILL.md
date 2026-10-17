@@ -1,11 +1,11 @@
 ---
 name: qa-amplify
-description: Agrega evidencia nueva a un defecto AF-XXX existente sin cambiar su estado. Publica una subpágina 'AF-XXX_ampliacion_<origen>' bajo la página Nivel 1 de Notion y guarda una copia local; el estado del Sheet no se toca. Úsala cuando un hallazgo ya estaba reportado (duplicado o ampliación), o cuando hay evidencia nueva sobre un ticket que nadie está re-verificando. ESCRIBE en Notion; requiere dry-run y confirmación. / Add evidence to an existing defect without changing its status.
+description: Agrega evidencia nueva a un defecto AF-XXX existente sin cambiar su estado. Añade un bloque 'Ampliación (<origen>)' al final de Comentario QA en Google Sheets y guarda una copia local; el estado no se toca. Úsala cuando un hallazgo ya estaba reportado (duplicado o ampliación), o cuando hay evidencia nueva sobre un ticket que nadie está re-verificando. ESCRIBE en la planilla compartida; requiere dry-run, token de Sheets fresco y confirmación. / Add evidence to an existing defect without changing its status.
 ---
 
 # QA Amplify (`qa-amplify`)
 
-Suma evidencia a un ticket que ya existe. Escribe en Notion, que usa todo el equipo.
+Suma evidencia a un ticket que ya existe. Escribe en Google Sheets, que usa todo el equipo.
 
 > `<KIT>` es la carpeta raíz del kit: dos niveles por encima de este `SKILL.md`. Ejecuta desde la raíz de tu workspace.
 
@@ -24,9 +24,10 @@ Si el ticket está `Finalizada` y el problema volvió a aparecer, es una posible
 ## Protocolo obligatorio
 
 1. **Redacta la evidencia:** qué se vio, con su fuente (`[R]` observado, `[DB]` base de datos o logs, `archivo:línea`), y qué aporta respecto al ticket original. No repitas lo que el ticket ya dice.
-2. **Dry-run:** no escribe nada. Por cada ticket muestra la página Nivel 1 destino, el título, el estado actual en el Sheet y un extracto del contenido, y al final un `confirm_code` que cubre todo el lote.
+2. **Dry-run:** no escribe nada. Por cada ticket muestra la fila, el estado actual, cuántos caracteres se agregan y un extracto, y al final un `confirm_code` que cubre todo el lote.
 3. **Muestra el dry-run al usuario y pide confirmación explícita** en este turno. Una confirmación cubre el lote que mostraste, no otros.
-4. Solo con un "sí" claro, repite el mismo comando cambiando `--dry-run` por `--confirm <confirm_code>`. Si cambias el lote (otro `--only`, otro texto), el código no sirve: repite el dry-run.
+4. **Pide el token de Sheets:** "necesito token fresco de Sheets". La persona lo pega en el `.env` del workspace como `SHEETS_ACCESS_TOKEN=`.
+5. Solo con un "sí" claro, repite el mismo comando cambiando `--dry-run` por `--confirm <confirm_code>`. Si cambias el lote (otro `--only`, otro texto), el código no sirve: repite el dry-run. Las ampliaciones no exigen la confirmación en terminal: el estado del ticket no cambia.
 
 ### Un ticket
 
@@ -64,7 +65,7 @@ Este cuerpo se publica en los dos tickets.
 - **AF-236**: otra línea.
 ```
 
-Cada viñeta de la última sección se publica como una subpágina corta en su ticket.
+Cada viñeta de la última sección se agrega como un bloque corto en su ticket.
 
 ## Opciones
 
@@ -73,27 +74,20 @@ Cada viñeta de la última sección se publica como una subpágina corta en su t
 | `--dry-run` | No escribe nada. Úsala siempre primero; imprime el `confirm_code`. |
 | `--confirm <código>` | Obligatorio para publicar: el código del dry-run del mismo lote. |
 | `--only AF-X,AF-Y` | Publica solo esos tickets del archivo. |
-| `--level1 <id>` | Página Nivel 1 explícita (solo con un ticket), si no se resuelve sola. |
-| `--link-in-sheet` | Agrega la URL de la subpágina al final de COMENTARIO QA sin borrar lo que había. Apagado por defecto; úsalo solo si el usuario lo pide. |
 
 ## Qué hace
 
 1. Busca el ticket en el Sheet y lee su estado actual (solo para mostrarlo).
-2. Resuelve la página Nivel 1 desde la URL de Notion guardada en el Sheet; si no puede, la busca por título.
-3. Si ya hay una subpágina con el mismo título, **no la duplica** y lo informa. Si la evidencia es distinta, usa otro origen.
-4. Publica la subpágina con un encabezado estándar (origen, fecha, autor y "sin cambiar el estado del ticket") y guarda una copia en `Reportes/ampliaciones/`.
-5. **No cambia el estado del Sheet.** Solo con `--link-in-sheet` agrega el enlace en COMENTARIO QA.
+2. Si Comentario QA ya tiene una ampliación con el mismo origen, **no la duplica** y lo informa. Si la evidencia es distinta, usa otro origen.
+3. Agrega al final de Comentario QA el bloque `--- Ampliación (<origen>) ---` con fecha, autor y la evidencia, respetando el tope de 45.000 caracteres, y guarda una copia en `Reportes/ampliaciones/`.
+4. **No cambia el estado ni ninguna otra columna.**
 
 Un ticket con error no detiene el lote: el resultado indica el error de cada uno.
 
 ## Códigos de salida
 
 - `0`: todo publicado (o dry-run sin errores).
-- `1`: algún ticket falló o ya tenía esa subpágina. Revisa el campo `error` de cada uno en el JSON.
+- `1`: algún ticket falló o ya tenía esa ampliación. Revisa el campo `error` de cada uno en el JSON.
 - `2`: argumentos inválidos.
 - `4`: bloqueado. Falta `--confirm` o no coincide con el lote; no se escribió nada.
-
-## Si falla
-
-- **gcloud o token de Notion:** revisa con `qa-preflight`. Si gcloud da `CERTIFICATE_VERIFY_FAILED`, configura `QA_KIT_CA_BUNDLE` (ver README).
-- **Sin página Nivel 1:** revisa que la columna COMENTARIO QA del Sheet tenga la URL de Notion del ticket, o pásala con `--level1`.
+- `6`: sin token de Sheets o token vencido. Pide uno nuevo y que lo pegue en el `.env`.

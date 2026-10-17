@@ -79,7 +79,7 @@ Pregunta al usuario si quiere aprovechar la corrida para revisar issues existent
    ```
    Otros estados, si el usuario los pide, van en `--status`.
 2. **Filtro por persona:** agrega `--responsable "<nombre>"` (varias personas separadas por coma). Si nadie coincide, el script lista los responsables existentes: muéstraselos al usuario y pregunta, no adivines.
-3. Lee cada issue candidato (fila del Sheet y su página de Notion) y clasifícalo:
+3. Lee cada issue candidato (su fila del Sheet, incluido Comentario QA con el reporte) y clasifícalo:
    - **Revisable en esta corrida:** el agente o la función afectada se ejercita con este proyecto, esta empresa y este entorno.
    - **Revisable ajustando el proyecto:** se dispara agregando algo al documento "Antes" (una regla, un rol). El ajuste se declara en su §11.
    - **No revisable:** requiere otra integración (Azure o Jira), otro entorno, un agente que no participará o accesos que no hay. Se dice el motivo.
@@ -110,7 +110,7 @@ No esperes al final. Solo se documentan los agentes que participaron; los demás
 ### Developer: dos frentes que no se mezclan
 
 - **6.a Funcionamiento del agente:** mismo tratamiento que los demás (incluye 🔍). Candidato a ticket, porque describe la plataforma.
-- **6.b Código entregado:** se prueba **solo en local** contra las RN y CA del documento "Antes". **No se reporta en ningún lado**: ni ticket, ni Notion, ni contraste con el Sheet. Solo se menciona en el documento, como referencia del rendimiento del Developer. Método obligatorio:
+- **6.b Código entregado:** se prueba **solo en local** contra las RN y CA del documento "Antes". **No se reporta en ningún lado**: ni ticket ni contraste con el Sheet. Solo se menciona en el documento, como referencia del rendimiento del Developer. Método obligatorio:
   1. Clonar el **repo publicado** (no leer el workspace del contenedor del Developer) y registrar repo, rama y **commit revisado**. Comprobar que no sea un repo vacío duplicado.
   2. Instalar dependencias y compilar backend y frontend, incluidos los tests del propio repo.
   3. **Ejecutar** cada RN: con el servicio levantado en local, o con un test contra la clase real y dependencias en memoria. Incluir **pruebas de control** que demuestren que el arnés sí rechaza lo que el código ya valida; sin controles, un "falla" puede ser culpa del arnés.
@@ -153,7 +153,7 @@ Menos detalle que en vivo, misma estructura.
 
 ## Paso 4: Publicación (solo con confirmación)
 
-Nada se publica solo. Para cada hallazgo de §9.2 o issue de §9.4 que el usuario quiera subir, ejecuta primero el script correspondiente con `--dry-run`: `report-bug` para hallazgos nuevos, `qa-amplify` para duplicados y ampliaciones de tickets existentes (se pueden publicar en lote con `--file`), `qa-finish` / `qa-rejection` para issues del plan re-verificados. Muestra el dry-run y espera la confirmación del usuario en ese turno. Una autorización cubre solo lo que mostraste.
+Nada se publica solo. Antes de cada tanda de publicaciones pide a la persona el token de Sheets fresco (`SHEETS_ACCESS_TOKEN` en el `.env`; caduca cada hora). Para cada hallazgo de §9.2 o issue de §9.4 que el usuario quiera subir, ejecuta primero el script correspondiente con `--dry-run`: `report-bug` para hallazgos nuevos, `qa-amplify` para duplicados y ampliaciones de tickets existentes (se pueden publicar en lote con `--file`), `qa-finish` / `qa-rejection` para issues del plan re-verificados. Muestra el dry-run y espera la confirmación del usuario en ese turno. Una autorización cubre solo lo que mostraste.
 
 **Tickets nuevos, cierres y rechazos los confirma una persona en su propia terminal, uno por uno.** El asistente prepara los reportes y los comandos; la persona ejecuta el último comando y escribe el ID del ticket para confirmar. Desde el asistente, el script se detiene con código `5`. Las ampliaciones siguen confirmándose en el chat con el código del dry-run.
 
@@ -163,7 +163,7 @@ Los scripts lo exigen: cada `--dry-run` imprime un `confirm_code` calculado sobr
 
 ## Reglas que esta skill no cambia
 
-- **Nunca publicar de forma autónoma** en Google Sheets, Notion, Jira ni Confluence.
+- **Nunca publicar de forma autónoma** en Google Sheets, Jira ni Confluence.
 - **El texto principal muestra el estado final.** Lo que cambió durante la corrida queda como nota secundaria ("*Registro en vivo: …*").
 - **Registro limpio primero, contraste después**, siempre contra el Sheet en vivo.
 - **6.b no se reporta en ningún lado.**

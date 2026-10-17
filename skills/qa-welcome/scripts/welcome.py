@@ -9,8 +9,6 @@ for new developers and AI assistants.
 import os
 import sys
 import json
-import shutil
-import subprocess
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -32,29 +30,13 @@ def get_status_data():
         "python_version": sys.version.split()[0],
         "workspace_root": utils.WORKSPACE_ROOT if utils else os.getcwd(),
         "reporter": "Desconocido",
-        "gcloud_auth": False,
-        "notion_token": False,
+        "sheets_token_source": None,
         "submodules": {}
     }
-    
+
     if utils:
         data["reporter"] = utils.get_user_name()
-        ntok = utils.get_notion_token()
-        data["notion_token"] = bool(ntok)
-
-    # Check gcloud
-    if shutil.which("gcloud"):
-        try:
-            tok = subprocess.check_output(
-                ["gcloud", "auth", "print-access-token"],
-                text=True,
-                stderr=subprocess.PIPE,
-                shell=(sys.platform == "win32")
-            ).strip()
-            if tok and not tok.startswith("ERROR"):
-                data["gcloud_auth"] = True
-        except Exception:
-            data["gcloud_auth"] = False
+        data["sheets_token_source"] = utils.sheets_token_source() or None
 
     # Check submodules in workspace root
     ws = data["workspace_root"]
@@ -178,14 +160,16 @@ def main():
     print("-" * 65)
     
     print("\n🔍 ESTADO DE CONECTIVIDAD Y SERVICIOS:")
-    print(f"  {'Google Cloud Auth (Sheets API)':<32}: {'✅ Activo' if data['gcloud_auth'] else '⚠️ No activo (corre: gcloud auth login --enable-gdrive-access)'}")
-    print(f"  {'Notion API (NOTION_TOKEN)':<32}: {'✅ Configurado' if data['notion_token'] else '⚠️ No configurado'}")
-    if not data['notion_token']:
-        print(f"     👉 Configura NOTION_TOKEN en: {os.path.join(data['workspace_root'], '.env')}")
-    
-    print("\n📂 REPOSITORIOS PRODUCTO DETECTADOS:")
+    src = data["sheets_token_source"]
+    print(f"  {'Google Sheets API (token)':<32}: {('✅ Activo, fuente: ' + src) if src else '⚠️ Sin token'}")
+    if not src:
+        print(f"     👉 {utils.SHEETS_TOKEN_HELP if utils else 'Configura SHEETS_ACCESS_TOKEN en el .env del workspace.'}")
+    if src == "pegado":
+        print("     ℹ️ El token pegado dura 60 min: antes de publicar o cambiar estados, pide uno nuevo y pégalo en el .env.")
+
+    print("\n📂 REPOSITORIOS PRODUCTO DETECTADOS (QA_KIT_REPOS, relativos al workspace):")
     for repo, exists in data["submodules"].items():
-        print(f"  - {repo:<22}: {'✅ Presente' if exists else '❌ No encontrado (ejecuta git submodule update --init)'}")
+        print(f"  - {repo:<34}: {'✅ Presente' if exists else '❌ No encontrado (clónalo o ajusta QA_KIT_REPOS en el .env)'}")
 
     print("\n" + "=" * 65)
     print("  🚀 COMANDOS ESENCIALES (CHEATSHEET DE QA)")
@@ -193,13 +177,13 @@ def main():
     kit = PLUGIN_ROOT
     print(f"(Rutas absolutas; el kit está en: {kit})\n")
     print("1. Revisar defectos pendientes en Google Sheets (usa --limit alto para no truncar):")
-    print(f"   python \"{kit}/skills/qa-backlog/scripts/fetch_issues.py\" --status \"Pendiente,En Revisión\" --limit 200\n")
+    print(f"   python \"{kit}/skills/qa-backlog/scripts/fetch_issues.py\" --status \"Reportada,En Revisión,En curso\" --limit 500\n")
     print("2. Auditar commits o cambios de código de un issue:")
     print(f"   python \"{kit}/skills/qa-code-audit/scripts/audit_changes.py\" --issue \"AF-XXX\"\n")
     print("3. Pre-flight check (túneles IAP, DB y puertos antes de probar; --env dev|qa|team-devs):")
     print(f"   python \"{kit}/skills/qa-preflight/scripts/check_env.py\" --env dev\n")
-    print("4. Reportar un nuevo defecto (siempre --dry-run primero):")
-    print(f"   python \"{kit}/skills/report-bug/scripts/gsheets_updater.py\" --dry-run \"<Título>\" \"<Descripción>\" \"<Gravedad>\"\n")
+    print("4. Reportar un nuevo defecto desde sus dos reportes (siempre --dry-run primero):")
+    print(f"   python \"{kit}/skills/report-bug/scripts/gsheets_updater.py\" --dry-run Reportes/AF-XXX_x.md Reportes/AF-XXX_x_tecnico.md\n")
     print("5. Cerrar y aprobar formalmente un ticket verificado (siempre --dry-run primero):")
     print(f"   python \"{kit}/skills/qa-finish/scripts/qa_finish_publisher.py\" --dry-run --build \"<commit probado>\" \"AF-XXX\" \"<Resumen>\" \"<Evidencia>\" \"<Conclusión>\"\n")
     print("6. Rechazar formalmente un fix fallido o incompleto (siempre --dry-run primero):")

@@ -104,6 +104,8 @@ def is_empty_row(row: list) -> bool:
 def validate(path: str) -> dict:
     with open(path, encoding="utf-8", errors="replace") as f:
         text = f.read()
+    # Template comments are instructions, not content ("No participó" inside one must not skip a section).
+    text = re.sub(r"<!--.*?-->", "", text, flags=re.S)
     errors, warnings = [], []
 
     for rx, label in REQUIRED_HEADINGS:

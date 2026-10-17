@@ -4,15 +4,15 @@ IAFactory QA Kit - Setup & Diagnostic Wizard
 --------------------------------------------
 Automates onboarding on any new machine (Windows, macOS, Linux):
 1. Verifies Python version (>= 3.8) and OS.
-2. Checks Node.js and npx (required for Notion MCP).
-3. Checks Google Cloud CLI (`gcloud`).
-4. Checks Git client.
-5. Configures `.env` and `config.json`.
-6. Executes a pre-flight test.
+2. Checks Git client and Google Cloud CLI (`gcloud`, optional if you paste a Sheets token).
+3. Configures `.env` and `config.json`.
+4. Reports which source gives the Google Sheets token.
+5. Executes a pre-flight test.
 """
 
 import os
 import sys
+import json
 import subprocess
 import shutil
 
@@ -51,9 +51,8 @@ def main():
         print("  ❌ Python              : Requiere Python 3.8 o superior")
 
     ok_git = check_command("git", "Git CLI", "Instala Git desde https://git-scm.com/")
-    ok_node = check_command("node", "Node.js", "Instala Node.js (LTS) desde https://nodejs.org/")
-    ok_npx = check_command("npx", "npx (MCP Runner)", "Viene incluido con Node.js")
-    ok_gcloud = check_command("gcloud", "Google Cloud CLI", "Instala gcloud CLI desde https://cloud.google.com/sdk/docs/install")
+    ok_gcloud = check_command("gcloud", "Google Cloud CLI", "Instala gcloud CLI desde https://cloud.google.com/sdk/docs/install "
+                              "(opcional si pegas SHEETS_ACCESS_TOKEN en el .env; necesario para túneles IAP)")
 
     # 2. Configuración de Entorno e Identidad
     print("\n[2/4] Configurando variables de entorno e identidad...")
@@ -120,16 +119,13 @@ def main():
         except Exception as e:
             print(f"  ⚠️ GCP Compute Check   : Timeout o error conectando a GCP ({e})")
 
-    # Notion Token
-    try:
-        ntok = utils.get_notion_token()
-        if ntok and ntok.startswith("ntn_"):
-            print("  ✅ Notion Token        : Configurado (ntn_****************)")
-        else:
-            print(f"  ⚠️ Notion Token        : NOTION_TOKEN no configurado en {ws_env}")
-            print(f"     👉 Agrega tu token en: {ws_env} (ej: NOTION_TOKEN=ntn_xxxx...)")
-    except Exception as e:
-        print(f"  ⚠️ Verificación Notion : {e}")
+    # Google Sheets token (pasted / own OAuth client / gcloud)
+    src = utils.sheets_token_source()
+    if src:
+        print(f"  ✅ Token de Sheets     : disponible (fuente: {src})")
+    else:
+        print("  ⚠️ Token de Sheets     : ninguna fuente funciona")
+        print(f"     👉 {utils.SHEETS_TOKEN_HELP}")
 
     # 4. Pre-flight Check y Estado de Túneles
     print("\n[4/4] Ejecutando autodiagnóstico de Pre-flight y Túnel IAP...")
