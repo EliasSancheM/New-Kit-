@@ -58,7 +58,7 @@ CATALOG = {
         "scripts": {
             "new_run.py": {
                 "path": "skills/qa-e2e-corrida/scripts/new_run.py",
-                "purpose": "Crea los documentos de la corrida desde las plantillas en QA_KIT_E2E_DIR (por defecto Reportes/E2E/). Solo archivos locales; nunca sobrescribe.",
+                "purpose": "Crea los documentos de la corrida desde las plantillas en QA_KIT_E2E_DIR (por defecto Reportes/E2E/), con el bloque de cada agente y su tabla 📦 de artefactos esperados ya llena. Solo archivos locales; nunca sobrescribe.",
                 "flags": [
                     {"flag": "proyecto <slug>", "type": "subcommand", "description": "Crea proyectos/<slug>_requisitos.md (documento 'Antes')."},
                     {"flag": "corrida <empresa> <slug> [fecha]", "type": "subcommand", "description": "Crea <empresa>_<slug>_<fecha>.md (fecha por defecto: hoy)."},
@@ -73,11 +73,12 @@ CATALOG = {
             },
             "validate_run.py": {
                 "path": "skills/qa-e2e-corrida/scripts/validate_run.py",
-                "purpose": "Valida un documento de corrida contra la plantilla (secciones, metadatos, ✅/❌/🔍 por agente, --status all, etiquetas, gravedad, método de 6.b, estado final). Solo lectura. El documento está terminado solo con 0 errores.",
+                "purpose": "Valida un documento de corrida contra la plantilla: secciones, metadatos, tabla 📦 de artefactos verificada por el asistente ([R]/[DB] y resultado), ✅/❌/🔍 por agente, hallazgos con evidencia (no solo [H]) y gravedad con motivo, §9.1 por agente, decisiones humanas en §9.2, método de 6.b, estado final. Solo lectura. El documento está terminado solo con 0 errores.",
                 "flags": [
                     {"flag": "<documento.md>", "type": "positional", "description": "Documento de corrida a validar."},
                     {"flag": "--strict", "type": "boolean", "description": "Las advertencias también hacen fallar (código 1)."},
-                    {"flag": "--json", "type": "boolean", "description": "Errores y advertencias en JSON."}
+                    {"flag": "--json", "type": "boolean", "description": "Errores y advertencias en JSON."},
+                    {"flag": "--metrics", "type": "boolean", "description": "Solo los conteos (artefactos esperados/verificados/correctos, hallazgos por gravedad, decisiones de §9.2) en JSON, para comparar corridas."}
                 ],
                 "examples": [
                     "python skills/qa-e2e-corrida/scripts/validate_run.py Reportes/E2E/apiux_prestamo-equipos_2026-10-01.md"
@@ -216,44 +217,46 @@ CATALOG = {
         }
     },
     "qa-finish": {
-        "description": "Aprobación y resolución de defectos verificados empíricamente.",
+        "description": "Cierre formal de defectos verificados en vivo por el asistente: veredicto desde plantilla, lint y fila 'Finalizada' en Google Sheets.",
         "scripts": {
             "qa_finish_publisher.py": {
                 "path": "skills/qa-finish/scripts/qa_finish_publisher.py",
-                "purpose": "Genera el reporte local de éxito y actualiza Google Sheets: ESTADO Finalizada, FECHA TERMINO, CERRADA POR y el reporte completo en COMENTARIO QA.",
+                "purpose": "Publica un veredicto de cierre: pasa verdict.py lint, resuelve la fila, pide confirmación y escribe ESTADO Finalizada, FECHA TERMINO, CERRADA POR y el veredicto completo en COMENTARIO QA.",
                 "flags": [
-                    {"flag": "--dry-run", "type": "boolean", "description": "Muestra qué se escribiría sin escribir nada e imprime confirm_code. Usarlo siempre antes de publicar."},
-                    {"flag": "--build <commit|imagen>", "type": "string", "description": "Obligatorio. Versión que se probó y dónde; queda escrita en el reporte de éxito."},
-                    {"flag": "--confirm <código>", "type": "string", "description": "Obligatorio para publicar: el confirm_code del dry-run con los mismos argumentos. Sin él sale con código 4."},
-                    {"flag": "<defect_id>", "type": "string", "description": "Identificador del issue (AF-XXX)."},
-                    {"flag": "<resumen_validacion>", "type": "string", "description": "Resumen ejecutivo de la verificación exitosa."},
-                    {"flag": "<detalle_pruebas_evidencia>", "type": "string", "description": "Pasos ejecutados, logs o evidencia de prueba."},
-                    {"flag": "<conclusion>", "type": "string", "description": "Obligatoria. Por qué se considera resuelto, con el resultado observado."}
+                    {"flag": "--dry-run", "type": "boolean", "description": "Muestra fila, estado actual y lo que se escribiría sin escribir nada; imprime confirm_code si el lint pasa."},
+                    {"flag": "--confirm <código>", "type": "string", "description": "Obligatorio para publicar: el confirm_code del dry-run del mismo archivo. Sin él sale con código 4."},
+                    {"flag": "<veredicto.md>", "type": "positional", "description": "Veredicto escrito desde skills/shared/templates/veredicto.md con encabezado '# AF-NNN — Veredicto QA: Finalizada'."}
                 ],
                 "examples": [
-                    "python skills/qa-finish/scripts/qa_finish_publisher.py --dry-run --build \"ai-factory-frontend@9c1e2f0 en iafactory-qa\" \"AF-228\" \"SSO RBAC verificado sin fugas\" \"10 intentos con rol member bloqueados\" \"403 en los 10 intentos\"",
-                    "python skills/qa-finish/scripts/qa_finish_publisher.py --confirm 1a2b3c4d --build \"ai-factory-frontend@9c1e2f0 en iafactory-qa\" \"AF-228\" \"SSO RBAC verificado sin fugas\" \"10 intentos con rol member bloqueados\" \"403 en los 10 intentos\""
+                    "python skills/shared/verdict.py lint Reportes/exito/AF-228_veredicto.md",
+                    "python skills/qa-finish/scripts/qa_finish_publisher.py --dry-run Reportes/exito/AF-228_veredicto.md",
+                    "python skills/qa-finish/scripts/qa_finish_publisher.py --confirm 1a2b3c4d Reportes/exito/AF-228_veredicto.md"
                 ]
+            },
+            "verdict.py (shared)": {
+                "path": "skills/shared/verdict.py",
+                "purpose": "Lint del veredicto (cierre o rechazo): versión probada, criterio del ticket, tres preguntas sobre el cambio, casos ejecutados con evidencia [R]/[DB] (ticket + control), límites, sin frases de suposición. Solo lectura.",
+                "flags": [
+                    {"flag": "lint <veredicto.md>", "type": "subcommand", "description": "Revisa el archivo; código 1 con errores."},
+                    {"flag": "--json", "type": "boolean", "description": "Errores y advertencias en JSON."}
+                ],
+                "examples": ["python skills/shared/verdict.py lint Reportes/rechazo/AF-181_veredicto.md --json"]
             }
         }
     },
     "qa-rejection": {
-        "description": "Rechazo formal de tickets con soluciones incompletas o fallidas.",
+        "description": "Rechazo formal de fixes que fallaron en la verificación en vivo: veredicto desde plantilla, lint y fila 'Rechazada por QA' en Google Sheets.",
         "scripts": {
             "qa_rejection_publisher.py": {
                 "path": "skills/qa-rejection/scripts/qa_rejection_publisher.py",
-                "purpose": "Genera el reporte de rechazo con AI Warning Banner y actualiza Google Sheets: ESTADO Rechazada por QA, FECHA TERMINO, CERRADA POR y el reporte completo en COMENTARIO QA.",
+                "purpose": "Publica un veredicto de rechazo (al menos un caso en Falla): pasa verdict.py lint, resuelve la fila, pide confirmación y escribe ESTADO Rechazada por QA, FECHA TERMINO, CERRADA POR y el veredicto completo en COMENTARIO QA.",
                 "flags": [
-                    {"flag": "--dry-run", "type": "boolean", "description": "Muestra qué se escribiría sin escribir nada e imprime confirm_code. Usarlo siempre antes de publicar."},
-                    {"flag": "--build <commit|imagen>", "type": "string", "description": "Obligatorio. Versión que se probó y dónde; queda escrita en el reporte de rechazo."},
-                    {"flag": "--confirm <código>", "type": "string", "description": "Obligatorio para publicar: el confirm_code del dry-run con los mismos argumentos. Sin él sale con código 4."},
-                    {"flag": "<defect_id>", "type": "string", "description": "Identificador del issue (AF-XXX)."},
-                    {"flag": "<motivo_rechazo>", "type": "string", "description": "Razón principal por la cual no se acepta el fix."},
-                    {"flag": "<detalle_falla_empirica>", "type": "string", "description": "Evidencia de la replicación o error observado."},
-                    {"flag": "<cambios_encontrados_diff>", "type": "string", "description": "Análisis del código del desarrollador o causa raíz pendiente."}
+                    {"flag": "--dry-run", "type": "boolean", "description": "Muestra fila, estado actual y lo que se escribiría sin escribir nada; imprime confirm_code si el lint pasa."},
+                    {"flag": "--confirm <código>", "type": "string", "description": "Obligatorio para publicar: el confirm_code del dry-run del mismo archivo. Sin él sale con código 4."},
+                    {"flag": "<veredicto.md>", "type": "positional", "description": "Veredicto con encabezado '# AF-NNN — Veredicto QA: Rechazada por QA'."}
                 ],
                 "examples": [
-                    "python skills/qa-rejection/scripts/qa_rejection_publisher.py --dry-run --build \"ai-factory-frontend@9c1e2f0 en iafactory-qa\" \"AF-228\" \"Falta limpieza de listener\" \"Memory leak al cerrar tab\" \"useEffect sin return cleanup\""
+                    "python skills/qa-rejection/scripts/qa_rejection_publisher.py --dry-run Reportes/rechazo/AF-181_veredicto.md"
                 ]
             }
         }

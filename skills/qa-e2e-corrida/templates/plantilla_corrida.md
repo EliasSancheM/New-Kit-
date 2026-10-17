@@ -96,12 +96,20 @@ Si un agente no participó, reemplaza todo su bloque por una sola línea: "No pa
 
 **Configuración usada:**
 **Resumen de la conversación:**
-**Artefactos generados y qué se verificó:**
+
+### 📦 Artefactos esperados, verificados por el asistente en su destino real
+Cada fila la comprueba el asistente abriendo el destino (Wiki, Boards, Figma, repo, base de datos), no leyendo el chat: lo que el agente dice que hizo no es evidencia. Verificado = `[R]` abierto y visto, o `[DB]` leído en datos o logs, más cómo se comprobó. Resultado = **Existe y coincide** (con el documento "Antes" y lo acordado en el chat), **Existe con diferencias** (decir cuáles; cada diferencia es un hallazgo ❌), **No existe**.
+
+| Artefacto esperado | Dónde debe existir | Verificado ([R]/[DB] + cómo) | Resultado |
+|---|---|---|---|
+{{ARTEFACTOS}}
 
 ### ✅ Lo que funcionó bien
 -
 
 ### ❌ Hallazgos (registro limpio de la corrida)
+Gravedad: la palabra de la escala y el motivo entre paréntesis, p. ej. `Alta (entrega un backlog sin RN-3 y el usuario no lo nota)`. Un hallazgo con solo `[H]` no se cierra así: se verifica antes del cierre o pasa a §10.
+
 | # | Hallazgo | Evidencia | Gravedad propuesta | ¿Lo explica la configuración (§0.6)? |
 |---|---|---|---|---|
 | MY-1 | | | | |
@@ -141,11 +149,16 @@ Consulta: `fetch_issues.py --status all --limit 1000 --json` el <fecha hora>.
 **Configuración usada:**
 **Cómo se comportó el proceso:** (tiempos por ítem, reintentos, fidelidad, si abortó, si su narración coincide con lo que hizo)
 
+#### 📦 Artefactos esperados, verificados por el asistente en su destino real
+| Artefacto esperado | Dónde debe existir | Verificado ([R]/[DB] + cómo) | Resultado (Existe y coincide / Existe con diferencias / No existe) |
+|---|---|---|---|
+{{ARTEFACTOS}}
+
 #### ✅ Lo que funcionó bien (proceso)
 -
 
 #### ❌ Hallazgos del proceso (registro limpio)
-| # | Hallazgo | Evidencia | Gravedad propuesta |
+| # | Hallazgo | Evidencia | Gravedad propuesta (palabra + motivo) |
 |---|---|---|---|
 | DEV-1 | | | |
 
@@ -212,11 +225,13 @@ Método (obligatorio; si algún paso no se pudo hacer, esta sección lo dice com
 
 ## 9. Resumen ejecutivo
 
-### 9.1 Lo bueno por agente
+### 9.1 Resultado por agente
 
-| Agente | Síntesis |
-|---|---|
-| | |
+Una fila por agente que participó. Los números salen de su tabla 📦 y de su tabla ❌; la síntesis dice en una frase qué cumplió y qué no respecto del documento "Antes".
+
+| Agente | Artefactos esperados / verificados / correctos | Hallazgos Crítica / Alta / Media / Baja | Bloqueos (§9.7) | Síntesis |
+|---|---|---|---|---|
+| | | | | |
 
 ### 9.2 Hallazgos consolidados: propuesta del asistente y decisión humana
 
@@ -281,6 +296,8 @@ Problemas de plataforma o infraestructura vistos durante la corrida que **no la 
 ---
 
 ## 11. Validación del documento
+
+La corrida se da por terminada solo si: `validate_run.py` da 0 errores; cada agente que participó tiene su tabla 📦 completa y verificada por el asistente; cada hallazgo tiene evidencia distinta de `[H]` y gravedad con motivo; y cada fila de §9.2 tiene la decisión de la persona.
 
 Resultado de `validate_run.py` al cerrar (pegar la línea de resumen):
 

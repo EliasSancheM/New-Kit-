@@ -42,6 +42,49 @@ def kit_version() -> str:
 AGENT_BLOCKS = [("2", "Product Owner", "PO"), ("3", "Arquitecto", "AR"), ("4", "UI/UX", "UX"),
                 ("5", "QA", "QA"), ("7", "DevSec", "SEC"), ("8", "DevOps", "OPS")]
 
+# What each agent must leave behind, and where the assistant has to open it to verify it.
+# These rows fill the 📦 table of each section; add rows for things the project "Antes" asks for.
+AGENT_ARTIFACTS = {
+    "1": [("Proyecto creado en IAF con el nombre acordado", "UI de proyectos / base de datos (projects)"),
+          ("Equipo asignado según la complejidad declarada", "workflow.agent_plan en base de datos"),
+          ("Perfiles de agentes de la empresa leídos antes de empezar", "company_agent_profiles (§0.6)")],
+    "2": [("Documento de requisitos (objetivos, alcance, RF, RN, exclusiones) sin duplicados", "Almacenamiento del proyecto y Wiki"),
+          ("Backlog: épicas e historias que cubren cada RF del documento 'Antes'", "Boards (Jira / Azure Boards)"),
+          ("Diagrama funcional embebido como imagen en el documento", "Documento de requisitos")],
+    "3": [("HLD publicado y coherente con lo acordado en el chat", "Wiki (Confluence / Azure Wiki)"),
+          ("LLD con modelo de datos que cubre las entidades del documento 'Antes'", "Wiki"),
+          ("Diagramas de arquitectura actualizados con la última decisión", "Wiki / documento"),
+          ("URLs del HLD y LLD guardadas en la sesión", "Base de datos de la sesión")],
+    "4": [("Pantallas que cubren cada UI-n del documento 'Antes'", "Figma"),
+          ("Contrato de API coherente con el LLD", "Repo / documento"),
+          ("Enlace del diseño publicado en la Wiki apunta al diseño, no a otro documento", "Wiki")],
+    "5": [("Plan de pruebas que cubre RF y RN del documento 'Antes'", "Wiki / documento"),
+          ("Casos de prueba trazables a RF-n / RN-n / CA-n", "Wiki / Boards"),
+          ("Veredicto del agente coherente con el estado real del proyecto", "Chat vs. repo / Boards")],
+    "6": [("Repositorio publicado con código (no un repo vacío duplicado)", "GitHub / Azure Repos"),
+          ("Commit final registrado y clonado para §6.b", "Repo publicado"),
+          ("SPEC y plan de desarrollo con el nombre real del proyecto", "docs/ del repo"),
+          ("Narración del agente coincide con lo que hay en el repo", "Chat vs. repo")],
+    "7": [("Reporte de seguridad publicado y basado en el código revisado", "Wiki / almacenamiento del proyecto"),
+          ("Plan de remediación ejecutado o entregado al Developer", "Chat / Boards / repo"),
+          ("Veredicto en el chat coherente con su propio reporte", "Chat vs. reporte")],
+    "8": [("Estrategia de infraestructura con los valores dados por el usuario (nube, ambientes, presupuesto, velocidad)", "Documento / Wiki"),
+          ("Topología y diagramas finales coinciden con lo pedido y con el resumen del agente", "Documento / base de datos"),
+          ("Pipelines o IaC si el plan los incluía", "Repo")],
+}
+
+
+def fill_artifacts(content: str) -> str:
+    """Replaces {{ARTEFACTOS}} inside each '## N.' section with that agent's expected artifacts."""
+    parts = re.split(r"(?m)^(?=## \d+\.)", content)
+    out = []
+    for part in parts:
+        m = re.match(r"## (\d+)\.", part)
+        rows = AGENT_ARTIFACTS.get(m.group(1), []) if m else []
+        table = "\n".join(f"| {a} | {w} | | |" for a, w in rows) or "| | | | |"
+        out.append(part.replace("{{ARTEFACTOS}}", table))
+    return "".join(out)
+
 
 def expand_agent_blocks(content: str) -> str:
     """Copies the Maya block (## 1. ... up to the next '---') into the sections that the
@@ -68,7 +111,7 @@ def create(template: str, target: str) -> dict:
     content = (content.replace("{{KIT_VERSION}}", kit_version())
                .replace("{{CREATED_AT}}", datetime.datetime.now().strftime("%Y-%m-%d %H:%M")))
     if template == "plantilla_corrida.md":
-        content = expand_agent_blocks(content)
+        content = fill_artifacts(expand_agent_blocks(content))
     with open(target, "w", encoding="utf-8") as f:
         f.write(content)
     return {"created": True, "path": target}

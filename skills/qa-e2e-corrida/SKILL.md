@@ -33,6 +33,8 @@ python <KIT>/skills/qa-e2e-corrida/scripts/validate_run.py <documento_corrida.md
 
 ## Reglas de consistencia (valen para cualquier persona y cualquier asistente)
 
+0. **El asistente verifica, no transcribe.** Con la instancia abierta por la persona (túnel, navegador con sesión, API, base de datos en solo lectura), el asistente comprueba por sí mismo cada artefacto y cada requisito del documento "Antes" en su destino real. "El agente dijo que lo publicó" no es evidencia; "lo abrí en Confluence a las 15:02 y tiene las 4 épicas" sí lo es.
+
 1. **El documento de corrida siempre se crea con `new_run.py`**, nunca copiando la plantilla a mano ni partiendo de un informe anterior. `new_run.py` escribe la versión del kit en los metadatos: así se sabe con qué método se hizo cada corrida.
 2. **Esta skill manda sobre la memoria del asistente y sobre informes anteriores** en todo lo que es método: estructura, secciones, tablas, etiquetas, escala de gravedad y pasos. La memoria sirve para criterios del producto que cambian con el tiempo, no para cambiar el formato.
 3. **Un solo documento, escrito durante la corrida.** No se lleva un registro paralelo con otro formato para "pasarlo después". Si otra sesión u otra herramienta completa el documento, se anota en "Autores del documento".
@@ -96,10 +98,11 @@ Durante la corrida, el resultado de cada issue se registra en la subsección �
 
 No esperes al final. Solo se documentan los agentes que participaron; los demás quedan con "No participó". Para cada agente, en este orden:
 
-1. **Configuración, resumen de la conversación y artefactos generados.** Verifica los artefactos en su destino real (Wiki, Boards, Figma, repo), no solo lo que el agente dijo en el chat.
+1. **Configuración y resumen de la conversación.**
+1b. **📦 Artefactos esperados, verificados por el asistente.** La tabla viene llena con lo que cada agente debe dejar (y se le agregan filas por lo que pida el documento "Antes"). El asistente abre cada destino real (Wiki, Boards, Figma, repo, base de datos) y escribe cómo lo comprobó (`[R]` o `[DB]`) y el resultado: **Existe y coincide**, **Existe con diferencias** (cada diferencia pasa a ❌) o **No existe**. Lo que el agente dijo en el chat no es evidencia; una fila sin verificación del asistente es un error del validador.
 2. **Libro de decisiones**, si el usuario cambió algo en esa etapa.
 3. **✅ Lo que funcionó bien.** Obligatorio, con evidencia concreta de qué se comprobó.
-4. **❌ Hallazgos: registro limpio.** Lo que pasó, con evidencia `[R]` runtime / `[DB]` base de datos o logs / `[C]` código / `[C-sub]` leído solo por subagente / `[H]` hipótesis, y gravedad propuesta. **Aquí no se mencionan tickets ni AF-IDs.** Para hallazgos de conducta de un agente, indica si la configuración de la §0.6 lo explica.
+4. **❌ Hallazgos: registro limpio.** Lo que pasó, con evidencia `[R]` runtime / `[DB]` base de datos o logs / `[C]` código / `[C-sub]` leído solo por subagente / `[H]` hipótesis, y gravedad propuesta como **palabra de la escala + motivo entre paréntesis**. Un hallazgo que al cierre solo tenga `[H]` no se queda en la tabla: se verifica o pasa a §10. **Aquí no se mencionan tickets ni AF-IDs.** Para hallazgos de conducta de un agente, indica si la configuración de la §0.6 lo explica.
    - **Descartar un hallazgo** (no llevarlo a ticket) solo se permite con una causa citada: lo explica la configuración de la §0.6, es un duplicado, o hay un criterio del producto vigente que lo declara normal (dilo con su fuente). "Parece comportamiento normal" sin fuente no es motivo; en la duda, se deja y se pregunta al usuario.
 5. **🔁 Issues del plan** probados en esta etapa, si hay plan.
 6. **🔍 Contraste con el Sheet en vivo**, al final de la sección: para cada hallazgo del punto 4, si ya estaba reportado.
@@ -135,7 +138,7 @@ Menos detalle que en vivo, misma estructura.
 ## Paso 3: Cierre
 
 1. **Plan de proyecto (§0.5):** de la idea del documento "Antes" a lo publicado, con el libro de decisiones y enlaces reales.
-2. **Lo bueno por agente (§9.1).**
+2. **Resultado por agente (§9.1):** una fila por agente que participó con artefactos esperados / verificados / correctos, hallazgos por gravedad, bloqueos y una síntesis. `validate_run.py --metrics` imprime estos conteos para comparar corridas.
 3. **Hallazgos consolidados (§9.2): la persona decide, el asistente propone.**
    - Una fila por **causa**: los hallazgos de la misma etapa con la misma raíz se agrupan (un ticket por causa, no por síntoma). No incluye 6.b ni la §9.8.
    - El asistente llena la propuesta (ticket / ampliar AF-XXX / descartar) con su motivo. Las columnas **Decisión**, **Motivo** y **Decidido por** son de la persona; el asistente solo las copia textualmente de lo que la persona dijo.
@@ -149,7 +152,7 @@ Menos detalle que en vivo, misma estructura.
 5. **Resultado del plan de issues (§9.4):** corregido → proponer cierre con `qa-finish`; persiste → proponer rechazo con `qa-rejection`; no se pudo probar → ninguna acción, va a pendientes.
 6. **Pendientes (§10):** qué quedó sin verificar y por qué.
 7. **Estado final primero.** Repasa el documento completo, no solo las secciones que cambiaron: cada tabla, título y párrafo debe mostrar primero el estado final verificado. Lo que ya se resolvió deja de decir "(en curso)", "(pendiente)", "candidato" o `[H]` en el texto principal; esa historia pasa a una columna "Estado inicial" o a una nota en cursiva "*Registro en vivo: …*". No basta con agregar marcas de cierre al lado del texto viejo.
-8. **Validación (§11):** corre `validate_run.py`. Con errores, el documento no está terminado. Las advertencias se corrigen o se justifican en la §11.
+8. **Validación (§11):** corre `validate_run.py`. Con errores, el documento no está terminado. Las advertencias se corrigen o se justifican en la §11. **Criterio de cierre:** 0 errores; tabla 📦 completa y verificada por el asistente en cada agente; ningún hallazgo con solo `[H]`; gravedad con motivo en todos; decisión de la persona en cada fila de §9.2.
 
 ## Paso 4: Publicación (solo con confirmación)
 
@@ -157,7 +160,7 @@ Nada se publica solo. Antes de cada tanda de publicaciones pide a la persona el 
 
 **Tickets nuevos, cierres y rechazos los confirma una persona en su propia terminal, uno por uno.** El asistente prepara los reportes y los comandos; la persona ejecuta el último comando y escribe el ID del ticket para confirmar. Desde el asistente, el script se detiene con código `5`. Las ampliaciones siguen confirmándose en el chat con el código del dry-run.
 
-Los scripts lo exigen: cada `--dry-run` imprime un `confirm_code` calculado sobre el contenido exacto, y la publicación real solo corre con `--confirm <confirm_code>` (si no, sale con código `4` sin escribir nada). Si editas el reporte después del dry-run, el código deja de valer y hay que repetirlo. `qa-finish` y `qa-rejection` exigen además `--build <commit o imagen probada>`: sin la versión probada no se cierra ni se rechaza un ticket, aunque haya "alta confianza".
+Los scripts lo exigen: cada `--dry-run` imprime un `confirm_code` calculado sobre el contenido exacto, y la publicación real solo corre con `--confirm <confirm_code>` (si no, sale con código `4` sin escribir nada). Si editas el reporte después del dry-run, el código deja de valer y hay que repetirlo. `qa-finish` y `qa-rejection` reciben un veredicto escrito desde `skills/shared/templates/veredicto.md` que pasa `verdict.py lint`: sin la versión probada ni los casos ejecutados en vivo no se cierra ni se rechaza un ticket, aunque haya "alta confianza".
 
 ---
 

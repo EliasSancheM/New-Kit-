@@ -94,7 +94,7 @@ Clona el kit en tu workspace (por ejemplo, en `.agents/plugins/iafactory-qa-kit`
 
 ### Seguridad al publicar
 
-`report-bug`, `qa-finish`, `qa-rejection` y `qa-amplify` escriben en la planilla compartida. Todos aceptan `--dry-run`, que muestra lo que se escribiría sin tocar nada e imprime un `confirm_code`. La publicación real exige `--confirm <confirm_code>` del dry-run del mismo contenido; sin él, el script sale con código `4` sin escribir. Tickets nuevos, cierres y rechazos se confirman además **en la terminal de la persona**, escribiendo el AF-XXX (desde un asistente, código `5`). `qa-finish` y `qa-rejection` exigen `--build` con la versión probada. Código `6` = falta el token de Sheets o venció.
+`report-bug`, `qa-finish`, `qa-rejection` y `qa-amplify` escriben en la planilla compartida. Todos aceptan `--dry-run`, que muestra lo que se escribiría sin tocar nada e imprime un `confirm_code`. La publicación real exige `--confirm <confirm_code>` del dry-run del mismo contenido; sin él, el script sale con código `4` sin escribir. Tickets nuevos, cierres y rechazos se confirman además **en la terminal de la persona**, escribiendo el AF-XXX (desde un asistente, código `5`). `qa-finish` y `qa-rejection` publican un veredicto escrito desde `skills/shared/templates/veredicto.md` que pasa `verdict.py lint`: versión probada, casos ejecutados por el asistente con evidencia observada, caso de control y límites. Código `6` = falta el token de Sheets o venció.
 
 ---
 
@@ -128,7 +128,7 @@ En Claude Code con el plugin instalado, el hook de inicio de sesión ya carga la
 1. **Backlog:** *"¿Qué hay en revisión?"* → eliges un ticket. Su reporte completo está en Comentario QA.
 2. **Entorno:** *"¿Está listo QA para probar?"* → el asistente revisa túneles y contenedores (solo lectura).
 3. **Código:** *"Revisa qué cambió en AF-XXX"* → ves los commits y el diff.
-4. **Prueba:** la haces tú, o le pides al asistente que te guíe con la plantilla de 4 fases de `rules/AGENTS.md`.
+4. **Prueba:** abres la instancia (túnel, navegador con sesión) y **el asistente ejecuta los casos** (ticket, control, límite) siguiendo las Fases 0 a 4 de `rules/AGENTS.md`, con evidencia observada. Nada se da por bueno porque "parece" o porque el test pasa.
 5. **Resultado:** *"pasó, ciérralo"* (`qa-finish`), *"sigue fallando, recházalo"* (`qa-rejection`), o *"no se está re-verificando, solo agrégale esta evidencia"* (`qa-amplify`). Si encontraste algo distinto: *"repórtalo como bug nuevo"* (`report-bug`). Antes del comando final, el asistente te pide el token de Sheets fresco: lo pegas en el `.env` y ejecutas el comando en tu terminal.
 
 ### 4. Corridas E2E

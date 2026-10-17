@@ -6,6 +6,30 @@ Formato de cada entrada: **Nuevo** (capacidades nuevas), **Cambiado** (comportam
 
 ---
 
+## [1.9.0] — 2026-10-17 · El asistente verifica en vivo: veredictos y corridas con evidencia obligatoria
+
+### Por qué
+
+Las reglas decían qué mirar, pero no cuándo un fix se aprueba o se rechaza, y nada impedía cerrar un ticket "con alta confianza" sin ejecutar el caso del ticket (pasó con AF-227). En las corridas E2E, "qué artefactos generó el agente" era texto libre, así que se daba por bueno lo que el agente decía en el chat y dos corridas no se podían comparar. Desde esta versión el criterio es uno: la persona abre la instancia y **el asistente verifica por sí mismo** cada caso y cada artefacto, con evidencia observada; lo que no se observó se declara no probado.
+
+### Nuevo
+
+- **Plantilla de veredicto** (`skills/shared/templates/veredicto.md`) y **`verdict.py lint`**: versión probada, criterio del ticket, las tres preguntas sobre el cambio (¿toca la causa raíz?, ¿cubre todos los síntomas?, ¿trae test del caso?), tabla de casos ejecutados (ticket, control, límite) con pasos, resultado observado, evidencia `[R]`/`[DB]` y Pasa/Falla/No probado, y límites. Rechaza marcadores de plantilla y frases como "se asume", "debería funcionar" o "alta confianza".
+- **Regla de veredicto en `AGENTS.md`:** Finalizada solo con versión desplegada identificada, caso del ticket y todos los síntomas pasando en vivo y control sin regresión; Rechazada si el caso falla, el cambio no toca la causa o rompe el control; Sin veredicto si no se pudo probar. Nueva **Fase 0** (qué pide el ticket, criterio de aceptación) y Fase 3 con los tres casos mínimos.
+- **Corridas E2E:** tabla 📦 de **artefactos esperados por agente**, llena por `new_run.py` con lo que cada agente debe dejar y dónde; el asistente la verifica en el destino real (`[R]`/`[DB]`) con resultado Existe y coincide / Existe con diferencias / No existe. §9.1 pasa a **Resultado por agente** (artefactos, hallazgos por gravedad, bloqueos, síntesis). `validate_run.py --metrics` imprime los conteos para comparar corridas.
+
+### Cambiado
+
+- **`qa-finish` y `qa-rejection` reciben el archivo de veredicto** en lugar de cuatro argumentos de texto. Con errores de lint no publican ni entregan código. `qa-finish` rechaza un veredicto con un caso en Falla; `qa-rejection` exige al menos uno.
+- **`validate_run.py` es más estricto:** son errores (antes advertencias o nada) una tabla 📦 vacía o sin verificación del asistente, un hallazgo sin etiqueta o con solo `[H]`, una gravedad fuera de escala o sin motivo entre paréntesis, y una fila de §9.1 ausente o incompleta para un agente que participó.
+
+### Cómo actualizar
+
+1. Escribe cierres y rechazos desde `veredicto.md` y pásalos por `verdict.py lint` antes del dry-run. Los comandos antiguos con `--build` y cuatro argumentos salen con código `2`.
+2. Crea las corridas nuevas con `new_run.py`: trae la tabla 📦 por agente. Las corridas anteriores no pasan el validador nuevo sin esa tabla.
+
+---
+
 ## [1.8.0] — 2026-10-17 · Solo Google Sheets, token pegado y publicación en un paso
 
 ### Por qué

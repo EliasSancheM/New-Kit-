@@ -31,12 +31,10 @@ REQUIRED_HEADINGS = [
     (r"^## 4\. UI/UX", "## 4. UI/UX"),
     (r"^## 5\. QA", "## 5. QA"),
     (r"^## 6\. Developer", "## 6. Developer"),
-    (r"^### 6\.a", "### 6.a Funcionamiento del agente"),
-    (r"^### 6\.b", "### 6.b Código entregado"),
     (r"^## 7\. DevSec", "## 7. DevSec"),
     (r"^## 8\. DevOps", "## 8. DevOps"),
     (r"^## 9\.", "## 9. Resumen ejecutivo"),
-    (r"^### 9\.1", "### 9.1 Lo bueno por agente"),
+    (r"^### 9\.1", "### 9.1 Resultado por agente"),
     (r"^### 9\.2", "### 9.2 Hallazgos consolidados"),
     (r"^### 9\.3", "### 9.3 Discrepancias"),
     (r"^### 9\.4", "### 9.4 Resultado del plan de issues"),
@@ -135,10 +133,15 @@ def validate(path: str) -> dict:
         warnings.append("§0.6: no hay foto de la configuración de agentes (o la tabla está vacía).")
 
     sections = split_sections(text)
+    metrics = {"agentes": {}, "decisiones_9_2": {}}
+    participating = []
     for num, name in AGENT_SECTIONS:
         body = sections.get(num, "")
         if not body or re.search(r"No particip", body):
             continue
+        participating.append(name)
+        m = {"artefactos": 0, "verificados": 0, "correctos": 0, "hallazgos": {"crítica": 0, "alta": 0, "media": 0, "baja": 0}}
+        metrics["agentes"][name] = m
         if "✅" not in body:
             errors.append(f"§{num} {name}: falta '✅ Lo que funcionó bien'.")
         if "❌" not in body:
@@ -147,19 +150,56 @@ def validate(path: str) -> dict:
             errors.append(f"§{num} {name}: falta el contraste '🔍' con el Sheet en vivo.")
         elif "--status all" not in body:
             errors.append(f"§{num} {name}: el contraste 🔍 no cita la consulta con '--status all'.")
-        for row in table_rows_after(body, r"❌"):
+
+        # 📦 artefactos: cada fila verificada por el asistente en su destino, con [R]/[DB] y un resultado de la lista.
+        artifacts = [r for r in table_rows_after(body, r"^#{2,4}.*📦") if r and r[0]]
+        if "📦" not in body:
+            errors.append(f"§{num} {name}: falta la tabla 📦 de artefactos esperados (usa un documento creado con new_run.py).")
+        elif not artifacts:
+            errors.append(f"§{num} {name}: la tabla 📦 de artefactos está vacía.")
+        for r in artifacts:
+            verified = r[2] if len(r) > 2 else ""
+            result = (r[3] if len(r) > 3 else "").strip("* ").lower()
+            m["artefactos"] += 1
+            if not verified.strip() or not re.search(r"\[(R|DB)\]", verified):
+                errors.append(f"§{num} {name}: artefacto '{r[0][:40]}' sin verificación [R]/[DB] del asistente "
+                              f"(lo que dijo el agente en el chat no cuenta).")
+            else:
+                m["verificados"] += 1
+            if not re.match(r"^(existe y coincide|existe con diferencias|no existe)\b", result):
+                errors.append(f"§{num} {name}: artefacto '{r[0][:40]}' con resultado '{r[3] if len(r) > 3 else ''}' "
+                              f"(debe ser Existe y coincide / Existe con diferencias / No existe).")
+            elif result.startswith("existe y coincide") and re.search(r"\[(R|DB)\]", verified):
+                m["correctos"] += 1
+
+        for row in table_rows_after(body, r"^#{2,4}.*❌"):
             if is_empty_row(row):
                 continue
             joined = " | ".join(row[:3])
             if re.search(r"\bAF-\d+", joined):
                 errors.append(f"§{num} {name}: la fila '{row[0]}' de ❌ menciona un AF-ID (va solo en 🔍).")
+            evidence = row[2] if len(row) > 2 else ""
+            tags = set(re.findall(r"\[(R|DB|C|C-sub|H)\]", evidence))
+            if not tags:
+                errors.append(f"§{num} {name}: hallazgo '{row[0]}' sin etiqueta de evidencia.")
+            elif tags == {"H"}:
+                errors.append(f"§{num} {name}: hallazgo '{row[0]}' solo tiene hipótesis [H]: verifícalo antes de cerrar "
+                              f"o muévelo a §10 Pendientes.")
             sev = next((c for c in row[3:4]), "")
-            sev_word = re.split(r"[\s(]", sev.strip("* "), maxsplit=1)[0].lower() if sev else ""
-            if sev and sev_word not in SEVERITIES:
-                warnings.append(f"§{num} {name}: gravedad '{sev}' en '{row[0]}' fuera de la escala (Crítica/Alta/Media/Baja).")
+            sev_m = re.match(r"^\**\s*(crítica|critica|alta|media|baja)\b\**\s*(\(.+\))?", sev.strip(), re.I)
+            if not sev_m:
+                errors.append(f"§{num} {name}: gravedad '{sev}' en '{row[0]}' fuera de la escala (Crítica/Alta/Media/Baja).")
+            else:
+                if not sev_m.group(2):
+                    errors.append(f"§{num} {name}: gravedad de '{row[0]}' sin motivo entre paréntesis.")
+                key = sev_m.group(1).lower().replace("critica", "crítica")
+                m["hallazgos"][key] += 1
 
     dev = sections.get("6", "")
     if dev and not re.search(r"No particip", dev):
+        for rx, label in ((r"^### 6\.a", "### 6.a Funcionamiento del agente"), (r"^### 6\.b", "### 6.b Código entregado")):
+            if not re.search(rx, dev, re.M):
+                errors.append(f"Falta la sección '{label}'.")
         sixb = dev.split("### 6.b", 1)[1] if "### 6.b" in dev else ""
         method = table_rows_after(sixb, r"Dato del método|^Método")
         if not method or any(len(r) < 2 or not r[1] for r in method):
@@ -168,9 +208,21 @@ def validate(path: str) -> dict:
         if not perf or any(len(r) < 2 or not r[1] for r in perf):
             errors.append("§6.b: la tabla de datos de rendimiento está incompleta (usa 'No aplica' si no hubo código).")
 
+    # §9.1: una fila por agente que participó, con los conteos y la síntesis.
+    result_rows = [r for r in table_rows_after(text, r"^### 9\.1") if not is_empty_row(r)]
+    for name in participating:
+        row = next((r for r in result_rows if name.lower() in r[0].lower()), None)
+        if not row:
+            errors.append(f"§9.1: falta la fila de resultado del agente {name}.")
+        elif len(row) < 5 or any(not c.strip() for c in row[:5]):
+            errors.append(f"§9.1 {name}: la fila tiene celdas vacías (artefactos, hallazgos, bloqueos, síntesis).")
+
     # §9.2: la decisión de qué es ticket la toma una persona, fila por fila.
     decisions = [r for r in table_rows_after(text, r"^### 9\.2") if not is_empty_row(r)]
     for r in decisions:
+        if len(r) >= 7:
+            dkey = re.split(r"[\s(]", r[6].strip("* ").lower(), maxsplit=1)[0] or "sin decisión"
+            metrics["decisiones_9_2"][dkey] = metrics["decisiones_9_2"].get(dkey, 0) + 1
         if len(r) < 9:
             errors.append("§9.2: la tabla no tiene las columnas de decisión humana (Decisión, Motivo, Decidido por); "
                           "usa la plantilla actual.")
@@ -203,7 +255,7 @@ def validate(path: str) -> dict:
         if hits:
             warnings.append(f"Texto principal con marca de estado no final '{rx}' ({hits} vez/veces): muévela a 'Registro en vivo' si ya se resolvió.")
 
-    return {"file": path, "ok": not errors, "errors": errors, "warnings": warnings}
+    return {"file": path, "ok": not errors, "errors": errors, "warnings": warnings, "metrics": metrics}
 
 
 def main():
@@ -211,12 +263,17 @@ def main():
     parser.add_argument("document")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--strict", action="store_true", help="Las advertencias también hacen fallar")
+    parser.add_argument("--metrics", action="store_true",
+                        help="Imprime solo los conteos (artefactos, hallazgos por gravedad, decisiones) en JSON para comparar corridas")
     args = parser.parse_args()
     if not os.path.isfile(args.document):
         print(f"No existe: {args.document}", file=sys.stderr)
         sys.exit(2)
 
     res = validate(args.document)
+    if args.metrics:
+        print(json.dumps({"file": args.document, "ok": res["ok"], **res["metrics"]}, indent=2, ensure_ascii=False))
+        sys.exit(0 if res["ok"] else 1)
     failed = bool(res["errors"]) or (args.strict and bool(res["warnings"]))
     res["summary"] = (f"validate_run: {'OK' if not failed else 'FALLA'} — {len(res['errors'])} errores, "
                       f"{len(res['warnings'])} advertencias{' (modo estricto)' if args.strict else ''}")
